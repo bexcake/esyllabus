@@ -25,7 +25,7 @@ public class CurrentUserService {
                 .map(GrantedAuthority::getAuthority)
                 .filter(authority -> authority.startsWith("ROLE_"))
                 .map(authority -> authority.substring("ROLE_".length()))
-                .map(UserAccessService::normalizeRole)
+                .map(RoleNormalizer::normalizeRole)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
         return new CurrentUser(email, Set.copyOf(roles));

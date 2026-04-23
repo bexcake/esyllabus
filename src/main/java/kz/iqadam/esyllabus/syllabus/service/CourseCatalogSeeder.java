@@ -3,12 +3,11 @@ package kz.iqadam.esyllabus.syllabus.service;
 import java.util.List;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseEntity;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseRepository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
-@ConditionalOnBean(CourseRepository.class)
 public class CourseCatalogSeeder implements CommandLineRunner {
 
     private final CourseRepository courseRepository;
@@ -18,6 +17,7 @@ public class CourseCatalogSeeder implements CommandLineRunner {
     }
 
     @Override
+    @Transactional
     public void run(String... args) {
         if (courseRepository.count() > 0) {
             return;

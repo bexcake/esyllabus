@@ -9,7 +9,7 @@ public record CurrentUser(
 
     public boolean hasAnyRole(String... expectedRoles) {
         for (var expectedRole : expectedRoles) {
-            if (roles.contains(UserAccessService.normalizeRole(expectedRole))) {
+            if (roles.contains(RoleNormalizer.normalizeRole(expectedRole))) {
                 return true;
             }
         }

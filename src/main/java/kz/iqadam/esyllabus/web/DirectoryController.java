@@ -5,6 +5,7 @@ import kz.iqadam.esyllabus.directory.api.SchoolResponse;
 import kz.iqadam.esyllabus.directory.api.StaffProfileResponse;
 import kz.iqadam.esyllabus.directory.api.StudentResponse;
 import kz.iqadam.esyllabus.directory.service.DirectoryService;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,5 +37,10 @@ public class DirectoryController {
     @GetMapping("/students")
     public List<StudentResponse> getStudents(@RequestParam(required = false) String search) {
         return directoryService.getStudents(search);
+    }
+
+    @GetMapping("/students/me")
+    public StudentResponse getCurrentStudent(Authentication authentication) {
+        return directoryService.getCurrentStudent(authentication.getName());
     }
 }

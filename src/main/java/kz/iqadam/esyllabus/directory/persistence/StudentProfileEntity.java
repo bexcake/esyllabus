@@ -13,8 +13,14 @@ public class StudentProfileEntity {
     @Column(length = 64, nullable = false)
     private String id;
 
+    @Column(length = 128, nullable = false, unique = true)
+    private String username;
+
     @Column(length = 255, nullable = false)
     private String fullName;
+
+    @Column(length = 255, nullable = false)
+    private String email;
 
     @Column(nullable = false)
     private int courseNumber;
@@ -39,6 +45,22 @@ public class StudentProfileEntity {
 
     public void setFullName(String fullName) {
         this.fullName = fullName;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public int getCourseNumber() {

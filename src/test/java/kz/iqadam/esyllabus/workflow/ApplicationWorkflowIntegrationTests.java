@@ -44,6 +44,7 @@ class ApplicationWorkflowIntegrationTests {
         mockMvc.perform(get("/api/directory/students")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].username").exists())
                 .andExpect(jsonPath("$[0].groupName").exists())
                 .andExpect(jsonPath("$[0].currentCourses[0].id").exists());
 
@@ -52,6 +53,12 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].schoolName").exists())
                 .andExpect(jsonPath("$[0].cabinet").exists());
+
+        mockMvc.perform(get("/api/directory/students/me")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("student", "student123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("student"))
+                .andExpect(jsonPath("$.currentCourses[0].id").exists());
     }
 
     @Test

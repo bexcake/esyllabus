@@ -100,7 +100,9 @@ public class DirectoryService {
                 .sorted(Comparator.comparing(StudentProfileEntity::getFullName))
                 .map(student -> new StudentResponse(
                         student.getId(),
+                        student.getUsername(),
                         student.getFullName(),
+                        student.getEmail(),
                         student.getCourseNumber(),
                         student.getGroupName(),
                         CourseMetadataSupport.parseCsv(student.getCurrentCourseIdsCsv()).stream()
@@ -114,6 +116,31 @@ public class DirectoryService {
                                 .toList()
                 ))
                 .toList();
+    }
+
+    public StudentResponse getCurrentStudent(String username) {
+        var student = studentProfileRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Student profile not found"));
+        var coursesById = courseRepository.findAll().stream()
+                .collect(Collectors.toMap(course -> course.getId(), Function.identity(), (left, right) -> left));
+
+        return new StudentResponse(
+                student.getId(),
+                student.getUsername(),
+                student.getFullName(),
+                student.getEmail(),
+                student.getCourseNumber(),
+                student.getGroupName(),
+                CourseMetadataSupport.parseCsv(student.getCurrentCourseIdsCsv()).stream()
+                        .map(coursesById::get)
+                        .filter(Objects::nonNull)
+                        .map(course -> new StudentResponse.CurrentCourseResponse(
+                                course.getId(),
+                                course.getCode(),
+                                course.getTitle()
+                        ))
+                        .toList()
+        );
     }
 
     public StaffProfileEntity getRequiredStaffProfile(String username) {

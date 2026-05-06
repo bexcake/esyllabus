@@ -53,9 +53,9 @@ public class DirectorySeeder implements CommandLineRunner {
 
         if (studentProfileRepository.count() == 0) {
             studentProfileRepository.saveAll(List.of(
-                    createStudent("student-1", "Aliya Tolegen", 2, "CS-24-1", List.of("cs-540", "eco-214")),
-                    createStudent("student-2", "Nursultan Beken", 3, "BUS-23-2", List.of("bus-415", "syllabus-public-policy-2026")),
-                    createStudent("student-3", "Aruzhan Kydyr", 1, "LAW-25-1", List.of("law-331", "edu-601"))
+                    createStudent("student-1", "student", "Aliya Tolegen", "aliya.tolegen@iqadam.kz", 2, "CS-24-1", List.of("cs-540", "eco-214")),
+                    createStudent("student-2", "student-two", "Nursultan Beken", "n.beken@iqadam.kz", 3, "BUS-23-2", List.of("bus-415", "syllabus-public-policy-2026")),
+                    createStudent("student-3", "student-three", "Aruzhan Kydyr", "a.kydyr@iqadam.kz", 1, "LAW-25-1", List.of("law-331", "edu-601"))
             ));
         }
     }
@@ -95,14 +95,18 @@ public class DirectorySeeder implements CommandLineRunner {
 
     private StudentProfileEntity createStudent(
             String id,
+            String username,
             String fullName,
+            String email,
             int courseNumber,
             String groupName,
             List<String> currentCourseIds
     ) {
         var student = new StudentProfileEntity();
         student.setId(id);
+        student.setUsername(username);
         student.setFullName(fullName);
+        student.setEmail(email);
         student.setCourseNumber(courseNumber);
         student.setGroupName(groupName);
         student.setCurrentCourseIdsCsv(CourseMetadataSupport.toCsv(currentCourseIds));

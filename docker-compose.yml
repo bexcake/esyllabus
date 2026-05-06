@@ -2,52 +2,66 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: esyllabus-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: esyllabus
-      POSTGRES_USER: esyllabus
-      POSTGRES_PASSWORD: esyllabus
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - esyllabus-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U esyllabus -d esyllabus"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - esyllabus-network
 
   app:
     build:
       context: .
+      dockerfile: Dockerfile
     container_name: esyllabus-app
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/esyllabus
-      DB_USER: esyllabus
-      DB_PASSWORD: esyllabus
-      APP_USER_1_USERNAME: teacher
-      APP_USER_1_PASSWORD: teacher123
-      APP_USER_1_ROLES: teacher
-      APP_USER_2_USERNAME: professor
-      APP_USER_2_PASSWORD: professor123
-      APP_USER_2_ROLES: professor
-      APP_USER_3_USERNAME: director
-      APP_USER_3_PASSWORD: director123
-      APP_USER_3_ROLES: director
-      APP_USER_4_USERNAME: librarian
-      APP_USER_4_PASSWORD: librarian123
-      APP_USER_4_ROLES: librarian
-      APP_USER_5_USERNAME: lecturer
-      APP_USER_5_PASSWORD: lecturer123
-      APP_USER_5_ROLES: lecturer
-      APP_USER_6_USERNAME: student
-      APP_USER_6_PASSWORD: student123
-      APP_USER_6_ROLES: student
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      APP_USER_1_USERNAME: ${APP_USER_1_USERNAME}
+      APP_USER_1_PASSWORD: ${APP_USER_1_PASSWORD}
+      APP_USER_1_ROLES: ${APP_USER_1_ROLES}
+
+      APP_USER_2_USERNAME: ${APP_USER_2_USERNAME}
+      APP_USER_2_PASSWORD: ${APP_USER_2_PASSWORD}
+      APP_USER_2_ROLES: ${APP_USER_2_ROLES}
+
+      APP_USER_3_USERNAME: ${APP_USER_3_USERNAME}
+      APP_USER_3_PASSWORD: ${APP_USER_3_PASSWORD}
+      APP_USER_3_ROLES: ${APP_USER_3_ROLES}
+
+      APP_USER_4_USERNAME: ${APP_USER_4_USERNAME}
+      APP_USER_4_PASSWORD: ${APP_USER_4_PASSWORD}
+      APP_USER_4_ROLES: ${APP_USER_4_ROLES}
+
+      APP_USER_5_USERNAME: ${APP_USER_5_USERNAME}
+      APP_USER_5_PASSWORD: ${APP_USER_5_PASSWORD}
+      APP_USER_5_ROLES: ${APP_USER_5_ROLES}
+
+      APP_USER_6_USERNAME: ${APP_USER_6_USERNAME}
+      APP_USER_6_PASSWORD: ${APP_USER_6_PASSWORD}
+      APP_USER_6_ROLES: ${APP_USER_6_ROLES}
     ports:
-      - "8080:8080"
-    restart: unless-stopped
+      - "${APP_PORT}:8080"
+    networks:
+      - esyllabus-network
 
 volumes:
-  postgres-data:
+  esyllabus-postgres-data:
+
+networks:
+  esyllabus-network:
+    name: esyllabus-network

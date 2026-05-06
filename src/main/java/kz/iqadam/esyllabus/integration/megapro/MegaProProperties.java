@@ -12,6 +12,9 @@ public record MegaProProperties(
         Duration connectTimeout,
         Duration readTimeout,
         String authHeaderName,
-        String authHeaderValue
+        String authHeaderValue,
+        boolean syncEnabled,
+        String syncCron,
+        int syncLimitPerCourse
 ) {
 }

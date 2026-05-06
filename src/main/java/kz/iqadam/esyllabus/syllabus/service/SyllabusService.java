@@ -75,13 +75,15 @@ public class SyllabusService {
                         course.getTitle(),
                         course.getCode(),
                         course.getProgram(),
+                        course.getSchoolId(),
                         course.getDegreeLevel(),
                         course.getAcademicYear(),
                         course.getTrimester(),
                         course.getLanguageOfInstruction(),
                         course.getCredits(),
                         latestStatusesByCourseId.getOrDefault(course.getId(), SyllabusStatus.DRAFT).frontendValue(),
-                        SyllabusContentFactory.parseInstructors(course.getInstructorsCsv())
+                        SyllabusContentFactory.parseInstructors(course.getInstructorsCsv()),
+                        CourseMetadataSupport.parseCsv(course.getDisciplineTagsCsv())
                 ))
                 .filter(item -> filterCourse(item, search, degree, language, status))
                 .sorted(Comparator.comparing(CourseCatalogItemResponse::title))
@@ -99,13 +101,15 @@ public class SyllabusService {
                 course.getTitle(),
                 course.getCode(),
                 course.getProgram(),
+                course.getSchoolId(),
                 course.getDegreeLevel(),
                 course.getAcademicYear(),
                 course.getTrimester(),
                 course.getLanguageOfInstruction(),
                 course.getCredits(),
                 status.frontendValue(),
-                SyllabusContentFactory.parseInstructors(course.getInstructorsCsv())
+                SyllabusContentFactory.parseInstructors(course.getInstructorsCsv()),
+                CourseMetadataSupport.parseCsv(course.getDisciplineTagsCsv())
         );
     }
 

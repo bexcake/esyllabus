@@ -1,12 +1,18 @@
 package kz.iqadam.esyllabus.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import kz.iqadam.esyllabus.security.CurrentUser;
 import kz.iqadam.esyllabus.security.CurrentUserService;
 import kz.iqadam.esyllabus.syllabus.api.ImportLibraryResourcesRequest;
 import kz.iqadam.esyllabus.syllabus.api.ReturnForFixRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusCreateRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusResponse;
+import kz.iqadam.esyllabus.syllabus.service.SyllabusPdfExportService;
 import kz.iqadam.esyllabus.syllabus.service.SyllabusService;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,10 +28,16 @@ public class SyllabusController {
 
     private final CurrentUserService currentUserService;
     private final SyllabusService syllabusService;
+    private final SyllabusPdfExportService syllabusPdfExportService;
 
-    public SyllabusController(CurrentUserService currentUserService, SyllabusService syllabusService) {
+    public SyllabusController(
+            CurrentUserService currentUserService,
+            SyllabusService syllabusService,
+            SyllabusPdfExportService syllabusPdfExportService
+    ) {
         this.currentUserService = currentUserService;
         this.syllabusService = syllabusService;
+        this.syllabusPdfExportService = syllabusPdfExportService;
     }
 
     @PostMapping
@@ -78,5 +90,20 @@ public class SyllabusController {
             @RequestBody ImportLibraryResourcesRequest request
     ) {
         return syllabusService.importLibraryResources(currentUserService.getCurrentUser(authentication), syllabusId, request);
+    }
+
+    @GetMapping(value = "/{syllabusId}/export-pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<ByteArrayResource> exportPdf(
+            Authentication authentication,
+            @PathVariable String syllabusId
+    ) {
+        CurrentUser currentUser = currentUserService.getCurrentUser(authentication);
+        var pdf = syllabusPdfExportService.exportSyllabus(currentUser, syllabusId);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + syllabusId + ".pdf\"")
+                .contentLength(pdf.length)
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(new ByteArrayResource(pdf));
     }
 }

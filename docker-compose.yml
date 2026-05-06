@@ -36,6 +36,12 @@ services:
       APP_USER_3_USERNAME: director
       APP_USER_3_PASSWORD: director123
       APP_USER_3_ROLES: director
+      APP_USER_4_USERNAME: librarian
+      APP_USER_4_PASSWORD: librarian123
+      APP_USER_4_ROLES: librarian
+      APP_USER_5_USERNAME: lecturer
+      APP_USER_5_PASSWORD: lecturer123
+      APP_USER_5_ROLES: lecturer
     ports:
       - "8080:8080"
     restart: unless-stopped

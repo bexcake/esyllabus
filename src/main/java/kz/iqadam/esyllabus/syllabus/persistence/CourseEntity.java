@@ -22,6 +22,9 @@ public class CourseEntity {
     @Column(nullable = false, length = 255)
     private String program;
 
+    @Column(length = 128)
+    private String schoolId;
+
     @Column(nullable = false, length = 32)
     private String degreeLevel;
 
@@ -39,6 +42,9 @@ public class CourseEntity {
 
     @Column(nullable = false, length = 2000)
     private String instructorsCsv;
+
+    @Column(length = 2000)
+    private String disciplineTagsCsv;
 
     public String getId() {
         return id;
@@ -70,6 +76,14 @@ public class CourseEntity {
 
     public void setProgram(String program) {
         this.program = program;
+    }
+
+    public String getSchoolId() {
+        return schoolId;
+    }
+
+    public void setSchoolId(String schoolId) {
+        this.schoolId = schoolId;
     }
 
     public String getDegreeLevel() {
@@ -118,5 +132,13 @@ public class CourseEntity {
 
     public void setInstructorsCsv(String instructorsCsv) {
         this.instructorsCsv = instructorsCsv;
+    }
+
+    public String getDisciplineTagsCsv() {
+        return disciplineTagsCsv;
+    }
+
+    public void setDisciplineTagsCsv(String disciplineTagsCsv) {
+        this.disciplineTagsCsv = disciplineTagsCsv;
     }
 }

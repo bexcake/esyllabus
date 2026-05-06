@@ -12,25 +12,24 @@ deploy_prod:
     - main
   script:
     - echo "Deploying esyllabus project..."
-    
 
-    - sudo mkdir -p $APP_DIR
+    - mkdir -p $APP_DIR
 
-    - sudo rsync -av --delete
+    - rsync -av --delete
       --exclude='.git'
       --exclude='target'
       --exclude='.idea'
       --exclude='.env'
       ./ $APP_DIR/
 
-    - echo "$ENV_PROD" | sudo tee $APP_DIR/.env > /dev/null
+    - echo "$ENV_PROD" > $APP_DIR/.env
 
     - cd $APP_DIR
 
-    - sudo docker compose -f docker-compose.prod.yml --env-file .env down --remove-orphans
+    - docker compose -f docker-compose.prod.yml --env-file .env down --remove-orphans
 
-    - sudo docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+    - docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 
-    - sudo docker image prune -f
+    - docker image prune -f
 
-    - sudo docker ps
+    - docker ps

@@ -12,6 +12,7 @@ deploy_prod:
     - main
   script:
     - echo "Deploying esyllabus project..."
+    
 
     - sudo mkdir -p $APP_DIR
 

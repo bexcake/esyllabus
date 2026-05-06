@@ -1,0 +1,35 @@
+stages:
+  - deploy
+
+variables:
+  APP_DIR: "/opt/esyllabus"
+
+deploy_prod:
+  stage: deploy
+  tags:
+    - rocky
+  only:
+    - main
+  script:
+    - echo "Deploying esyllabus project..."
+
+    - sudo mkdir -p $APP_DIR
+
+    - sudo rsync -av --delete
+      --exclude='.git'
+      --exclude='target'
+      --exclude='.idea'
+      --exclude='.env'
+      ./ $APP_DIR/
+
+    - echo "$ENV_PROD" | sudo tee $APP_DIR/.env > /dev/null
+
+    - cd $APP_DIR
+
+    - sudo docker compose -f docker-compose.prod.yml --env-file .env down --remove-orphans
+
+    - sudo docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+
+    - sudo docker image prune -f
+
+    - sudo docker ps

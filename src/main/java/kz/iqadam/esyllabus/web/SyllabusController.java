@@ -6,6 +6,8 @@ import kz.iqadam.esyllabus.security.CurrentUserService;
 import kz.iqadam.esyllabus.syllabus.api.ImportLibraryResourcesRequest;
 import kz.iqadam.esyllabus.syllabus.api.ReturnForFixRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusCreateRequest;
+import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewQueueItemResponse;
+import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewersUpdateRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusResponse;
 import kz.iqadam.esyllabus.syllabus.service.SyllabusPdfExportService;
 import kz.iqadam.esyllabus.syllabus.service.SyllabusService;
@@ -49,9 +51,23 @@ public class SyllabusController {
         return syllabusService.createSyllabus(currentUserService.getCurrentUser(authentication), payload);
     }
 
+    @GetMapping("/review-queue")
+    public java.util.List<SyllabusReviewQueueItemResponse> getReviewQueue(Authentication authentication) {
+        return syllabusService.getReviewQueue(currentUserService.getCurrentUser(authentication));
+    }
+
     @GetMapping("/{syllabusId}")
     public SyllabusResponse getSyllabus(Authentication authentication, @PathVariable String syllabusId) {
         return syllabusService.getSyllabus(currentUserService.getCurrentUser(authentication), syllabusId);
+    }
+
+    @PutMapping("/{syllabusId}/reviewers")
+    public SyllabusResponse updateReviewers(
+            Authentication authentication,
+            @PathVariable String syllabusId,
+            @RequestBody(required = false) SyllabusReviewersUpdateRequest request
+    ) {
+        return syllabusService.updateReviewers(currentUserService.getCurrentUser(authentication), syllabusId, request);
     }
 
     @PutMapping("/{syllabusId}")
@@ -66,6 +82,11 @@ public class SyllabusController {
     @PostMapping("/{syllabusId}/submit-review")
     public SyllabusResponse submitForReview(Authentication authentication, @PathVariable String syllabusId) {
         return syllabusService.submitForReview(currentUserService.getCurrentUser(authentication), syllabusId);
+    }
+
+    @PostMapping("/{syllabusId}/colleague-approve")
+    public SyllabusResponse approveColleague(Authentication authentication, @PathVariable String syllabusId) {
+        return syllabusService.approveColleague(currentUserService.getCurrentUser(authentication), syllabusId);
     }
 
     @PostMapping("/{syllabusId}/approve")

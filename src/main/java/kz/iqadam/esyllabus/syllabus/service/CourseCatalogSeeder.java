@@ -4,10 +4,12 @@ import java.util.List;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseEntity;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseRepository;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Order(10)
 public class CourseCatalogSeeder implements CommandLineRunner {
 
     private final CourseRepository courseRepository;

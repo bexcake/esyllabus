@@ -7,6 +7,7 @@ import java.util.List;
 public record LibraryRequestResponse(
         String id,
         String requesterUsername,
+        String syllabusId,
         String requesterName,
         String schoolId,
         String schoolName,

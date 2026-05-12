@@ -38,7 +38,7 @@ public class AuthController {
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of(
-                        "message", "Access is allowed only for teachers, professors, and directors",
+                        "message", "Access is allowed only for teachers, directors, librarians, and students",
                         "email", Objects.toString(email, "anonymous")
                 ));
     }

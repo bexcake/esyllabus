@@ -30,21 +30,15 @@ services:
       APP_USER_1_USERNAME: teacher
       APP_USER_1_PASSWORD: teacher123
       APP_USER_1_ROLES: teacher
-      APP_USER_2_USERNAME: professor
-      APP_USER_2_PASSWORD: professor123
-      APP_USER_2_ROLES: professor
-      APP_USER_3_USERNAME: director
-      APP_USER_3_PASSWORD: director123
-      APP_USER_3_ROLES: director
-      APP_USER_4_USERNAME: librarian
-      APP_USER_4_PASSWORD: librarian123
-      APP_USER_4_ROLES: librarian
-      APP_USER_5_USERNAME: lecturer
-      APP_USER_5_PASSWORD: lecturer123
-      APP_USER_5_ROLES: lecturer
-      APP_USER_6_USERNAME: student
-      APP_USER_6_PASSWORD: student123
-      APP_USER_6_ROLES: student
+      APP_USER_2_USERNAME: director
+      APP_USER_2_PASSWORD: director123
+      APP_USER_2_ROLES: director
+      APP_USER_3_USERNAME: librarian
+      APP_USER_3_PASSWORD: librarian123
+      APP_USER_3_ROLES: librarian
+      APP_USER_4_USERNAME: student
+      APP_USER_4_PASSWORD: student123
+      APP_USER_4_ROLES: student
     ports:
       - "8080:8080"
     restart: unless-stopped

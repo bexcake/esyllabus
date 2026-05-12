@@ -6,10 +6,8 @@ import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import kz.iqadam.esyllabus.directory.model.StaffRole;
 import kz.iqadam.esyllabus.directory.persistence.StaffProfileEntity;
 import kz.iqadam.esyllabus.directory.service.DirectoryService;
@@ -31,6 +29,11 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 @Transactional
 public class LibraryRequestService {
+
+    private static final List<LibraryRequestStatus> LIBRARIAN_VISIBLE_STATUSES = List.of(
+            LibraryRequestStatus.APPROVED_BY_DIRECTOR,
+            LibraryRequestStatus.FEEDBACK_PROVIDED
+    );
 
     private final LibraryRequestRepository libraryRequestRepository;
     private final LibraryRequestItemRepository libraryRequestItemRepository;
@@ -55,6 +58,7 @@ public class LibraryRequestService {
 
         var entity = new LibraryRequestEntity();
         entity.setId("library-request-" + UUID.randomUUID());
+        entity.setSyllabusId(null);
         entity.setRequesterUsername(user.email());
         entity.setRequesterName(staff.getFullName());
         entity.setSchoolId(school.getId());
@@ -72,9 +76,8 @@ public class LibraryRequestService {
 
     @Transactional(readOnly = true)
     public List<LibraryRequestResponse> getRequests(CurrentUser user, String status) {
-        var currentStaff = directoryService.getRequiredStaffProfile(user.email());
-        var requests = resolveVisibleRequests(user, currentStaff);
-        return requests.stream()
+        assertCanUseLibraryRequests(user);
+        return resolveVisibleRequests(user).stream()
                 .filter(item -> normalized(status) == null || item.getStatus().name().equalsIgnoreCase(status.trim()))
                 .sorted(Comparator.comparing(LibraryRequestEntity::getUpdatedAt).reversed())
                 .map(this::toResponse)
@@ -83,6 +86,7 @@ public class LibraryRequestService {
 
     @Transactional(readOnly = true)
     public LibraryRequestResponse getRequest(CurrentUser user, String requestId) {
+        assertCanUseLibraryRequests(user);
         var request = findRequest(requestId);
         assertCanRead(user, request);
         return toResponse(request);
@@ -106,8 +110,7 @@ public class LibraryRequestService {
     public void deleteRequest(CurrentUser user, String requestId) {
         var entity = findRequest(requestId);
         assertCanEdit(user, entity);
-        libraryRequestItemRepository.deleteByRequestId(entity.getId());
-        libraryRequestRepository.delete(entity);
+        deleteRequestEntity(entity);
     }
 
     public LibraryRequestResponse submitForDirectorApproval(CurrentUser user, String requestId) {
@@ -148,8 +151,7 @@ public class LibraryRequestService {
     public LibraryRequestResponse leaveLibraryFeedback(CurrentUser user, String requestId, LibraryRequestFeedbackRequest request) {
         var entity = findRequest(requestId);
         assertIsLibrarian(user);
-        if (entity.getStatus() != LibraryRequestStatus.APPROVED_BY_DIRECTOR
-                && entity.getStatus() != LibraryRequestStatus.FEEDBACK_PROVIDED) {
+        if (!isVisibleToLibrarian(entity)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Library feedback can be added only after director approval");
         }
         var feedback = normalized(request == null ? null : request.feedback());
@@ -171,6 +173,44 @@ public class LibraryRequestService {
         return toResponse(libraryRequestRepository.save(entity));
     }
 
+    public String synchronizeApprovedSyllabusRequest(ApprovedSyllabusLibraryRequest request) {
+        var existing = libraryRequestRepository.findBySyllabusId(request.syllabusId());
+        var items = request.items() == null ? List.<ApprovedSyllabusItem>of() : request.items().stream()
+                .filter(item -> normalized(item.title()) != null)
+                .toList();
+
+        if (items.isEmpty()) {
+            existing.ifPresent(this::deleteRequestEntity);
+            return null;
+        }
+
+        var requester = getTeachingRequesterProfile(request.requesterUsername());
+        var schoolId = defaulted(request.schoolId(), requester.getSchoolId());
+        var school = directoryService.getRequiredSchool(schoolId);
+        var entity = existing.orElseGet(LibraryRequestEntity::new);
+
+        if (entity.getId() == null) {
+            entity.setId("library-request-" + UUID.randomUUID());
+        }
+        entity.setSyllabusId(request.syllabusId());
+        entity.setRequesterUsername(request.requesterUsername());
+        entity.setRequesterName(requester.getFullName());
+        entity.setSchoolId(school.getId());
+        entity.setSchoolName(school.getName());
+        entity.setDirectorUsername(defaulted(request.directorUsername(), school.getDirectorUsername()));
+        entity.setDepartment(defaulted(request.department(), school.getName()));
+        entity.setEducationLevel(defaulted(request.educationLevel(), "Bachelor"));
+        entity.setRequestDate(request.requestDate() == null ? LocalDate.now() : request.requestDate());
+        entity.setDirectorComment(null);
+        entity.setLibraryFeedback(null);
+        entity.setExpectedPurchaseMonth(null);
+        entity.setStatus(LibraryRequestStatus.APPROVED_BY_DIRECTOR);
+
+        var saved = libraryRequestRepository.save(entity);
+        replaceItemsFromApprovedSyllabus(saved.getId(), items);
+        return saved.getId();
+    }
+
     @Transactional(readOnly = true)
     public byte[] exportSingleForm(CurrentUser user, String requestId) {
         var request = getRequest(user, requestId);
@@ -181,8 +221,7 @@ public class LibraryRequestService {
     public byte[] exportRequestsForLibrary(CurrentUser user) {
         assertIsLibrarian(user);
         return libraryRequestExportService.exportRequestsRegistry(
-                libraryRequestRepository.findAll().stream()
-                        .sorted(Comparator.comparing(LibraryRequestEntity::getUpdatedAt).reversed())
+                findRequestsVisibleToLibrarian().stream()
                         .map(this::toResponse)
                         .toList()
         );
@@ -194,15 +233,15 @@ public class LibraryRequestService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one request item is required");
         }
         if (normalized(entity.getDepartment()) == null || normalized(entity.getEducationLevel()) == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Department and education level must be заполнены before submission");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Department and education level must be filled before submission");
         }
     }
 
-    private List<LibraryRequestEntity> resolveVisibleRequests(CurrentUser user, StaffProfileEntity staff) {
-        if (staff.getRole() == StaffRole.LIBRARIAN || user.hasAnyRole("LIBRARIAN")) {
-            return libraryRequestRepository.findAll();
+    private List<LibraryRequestEntity> resolveVisibleRequests(CurrentUser user) {
+        if (user.hasAnyRole("LIBRARIAN")) {
+            return findRequestsVisibleToLibrarian();
         }
-        if (staff.getRole() == StaffRole.SCHOOL_DIRECTOR || user.hasAnyRole("DIRECTOR")) {
+        if (user.hasAnyRole("DIRECTOR")) {
             var result = new LinkedHashMap<String, LibraryRequestEntity>();
             libraryRequestRepository.findByDirectorUsernameOrderByUpdatedAtDesc(user.email())
                     .forEach(item -> result.put(item.getId(), item));
@@ -213,11 +252,37 @@ public class LibraryRequestService {
         return libraryRequestRepository.findByRequesterUsernameOrderByUpdatedAtDesc(user.email());
     }
 
+    private List<LibraryRequestEntity> findRequestsVisibleToLibrarian() {
+        return libraryRequestRepository.findByStatusInOrderByUpdatedAtDesc(LIBRARIAN_VISIBLE_STATUSES);
+    }
+
     private void replaceItems(String requestId, List<LibraryRequestUpsertRequest.ItemRequest> items) {
         libraryRequestItemRepository.deleteByRequestId(requestId);
         var safeItems = items == null ? List.<LibraryRequestUpsertRequest.ItemRequest>of() : items;
         for (int index = 0; index < safeItems.size(); index++) {
             var item = safeItems.get(index);
+            var entity = new LibraryRequestItemEntity();
+            entity.setRequestId(requestId);
+            entity.setLineNumber(index + 1);
+            entity.setTitle(required(item.title(), "Book title is required"));
+            entity.setAuthor(trimmed(item.author()));
+            entity.setIsbn(trimmed(item.isbn()));
+            entity.setPublisher(trimmed(item.publisher()));
+            entity.setPublicationYear(trimmed(item.publicationYear()));
+            entity.setDiscipline(required(item.discipline(), "Discipline is required"));
+            entity.setEducationalProgram(required(item.educationalProgram(), "Educational program is required"));
+            entity.setCourseNumber(item.courseNumber() == null ? 0 : Math.max(item.courseNumber(), 0));
+            entity.setTrimester(required(item.trimester(), "Trimester is required"));
+            entity.setQuantity(item.quantity() == null ? 1 : Math.max(item.quantity(), 1));
+            entity.setLiteratureType(required(item.literatureType(), "Literature type is required"));
+            libraryRequestItemRepository.save(entity);
+        }
+    }
+
+    private void replaceItemsFromApprovedSyllabus(String requestId, List<ApprovedSyllabusItem> items) {
+        libraryRequestItemRepository.deleteByRequestId(requestId);
+        for (int index = 0; index < items.size(); index++) {
+            var item = items.get(index);
             var entity = new LibraryRequestItemEntity();
             entity.setRequestId(requestId);
             entity.setLineNumber(index + 1);
@@ -257,6 +322,7 @@ public class LibraryRequestService {
         return new LibraryRequestResponse(
                 entity.getId(),
                 entity.getRequesterUsername(),
+                entity.getSyllabusId(),
                 entity.getRequesterName(),
                 entity.getSchoolId(),
                 entity.getSchoolName(),
@@ -280,17 +346,29 @@ public class LibraryRequestService {
     }
 
     private StaffProfileEntity getRequesterProfile(CurrentUser user) {
-        var staff = directoryService.getRequiredStaffProfile(user.email());
-        if (staff.getRole() == StaffRole.LIBRARIAN || staff.getRole() == StaffRole.SCHOOL_DIRECTOR) {
+        return getTeachingRequesterProfile(user.email());
+    }
+
+    private StaffProfileEntity getTeachingRequesterProfile(String username) {
+        var staff = directoryService.getRequiredStaffProfile(username);
+        if (!staff.getRole().isTeachingStaff()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only teaching staff can create library requests");
         }
         return staff;
     }
 
+    private void assertCanUseLibraryRequests(CurrentUser user) {
+        if (user.hasAnyRole("STUDENT")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Students cannot access library request workflow");
+        }
+    }
+
     private void assertCanRead(CurrentUser user, LibraryRequestEntity entity) {
         if (entity.getRequesterUsername().equalsIgnoreCase(user.email())
-                || entity.getDirectorUsername().equalsIgnoreCase(user.email())
-                || user.hasAnyRole("LIBRARIAN")) {
+                || entity.getDirectorUsername().equalsIgnoreCase(user.email())) {
+            return;
+        }
+        if (user.hasAnyRole("LIBRARIAN") && isVisibleToLibrarian(entity)) {
             return;
         }
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to read this request");
@@ -299,6 +377,9 @@ public class LibraryRequestService {
     private void assertCanEdit(CurrentUser user, LibraryRequestEntity entity) {
         if (!entity.getRequesterUsername().equalsIgnoreCase(user.email())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only requester can edit this request");
+        }
+        if (entity.getSyllabusId() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Requests generated from approved syllabi cannot be edited manually");
         }
         if (entity.getStatus() != LibraryRequestStatus.DRAFT && entity.getStatus() != LibraryRequestStatus.REJECTED_BY_DIRECTOR) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only draft or rejected requests can be edited");
@@ -312,10 +393,22 @@ public class LibraryRequestService {
     }
 
     private void assertIsLibrarian(CurrentUser user) {
+        if (user.hasAnyRole("LIBRARIAN")) {
+            return;
+        }
         var staff = directoryService.getRequiredStaffProfile(user.email());
-        if (staff.getRole() != StaffRole.LIBRARIAN && !user.hasAnyRole("LIBRARIAN")) {
+        if (staff.getRole() != StaffRole.LIBRARIAN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only librarian can process library feedback");
         }
+    }
+
+    private boolean isVisibleToLibrarian(LibraryRequestEntity entity) {
+        return LIBRARIAN_VISIBLE_STATUSES.contains(entity.getStatus());
+    }
+
+    private void deleteRequestEntity(LibraryRequestEntity entity) {
+        libraryRequestItemRepository.deleteByRequestId(entity.getId());
+        libraryRequestRepository.delete(entity);
     }
 
     private String required(String value, String message) {
@@ -341,5 +434,32 @@ public class LibraryRequestService {
         }
         var result = value.trim();
         return result.isBlank() ? null : result;
+    }
+
+    public record ApprovedSyllabusLibraryRequest(
+            String syllabusId,
+            String requesterUsername,
+            String directorUsername,
+            String schoolId,
+            String department,
+            String educationLevel,
+            LocalDate requestDate,
+            List<ApprovedSyllabusItem> items
+    ) {
+    }
+
+    public record ApprovedSyllabusItem(
+            String title,
+            String author,
+            String isbn,
+            String publisher,
+            String publicationYear,
+            String discipline,
+            String educationalProgram,
+            Integer courseNumber,
+            String trimester,
+            Integer quantity,
+            String literatureType
+    ) {
     }
 }

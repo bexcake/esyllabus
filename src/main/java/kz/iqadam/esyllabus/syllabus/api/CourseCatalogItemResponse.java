@@ -13,6 +13,7 @@ public record CourseCatalogItemResponse(
         int credits,
         String status,
         java.util.List<String> instructors,
-        java.util.List<String> disciplineTags
+        java.util.List<String> disciplineTags,
+        String syllabusId
 ) {
 }

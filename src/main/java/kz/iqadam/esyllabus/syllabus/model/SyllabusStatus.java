@@ -2,7 +2,9 @@ package kz.iqadam.esyllabus.syllabus.model;
 
 public enum SyllabusStatus {
     DRAFT("Draft"),
-    NEEDS_REVIEW("Needs Review"),
+    PENDING_COLLEAGUE_CONFIRMATION("Pending Colleague Confirmation"),
+    PENDING_DIRECTOR_REVIEW("Pending Director Review"),
+    NEEDS_REVIEW("Pending Director Review"),
     PUBLISHED("Published");
 
     private final String frontendValue;
@@ -13,5 +15,9 @@ public enum SyllabusStatus {
 
     public String frontendValue() {
         return frontendValue;
+    }
+
+    public boolean isPendingDirectorReview() {
+        return this == PENDING_DIRECTOR_REVIEW || this == NEEDS_REVIEW;
     }
 }

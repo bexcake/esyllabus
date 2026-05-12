@@ -69,10 +69,13 @@ public class DirectoryService {
     public List<StaffProfileResponse> getStaff(String schoolId, String role) {
         var schoolNames = schoolRepository.findAll().stream()
                 .collect(Collectors.toMap(SchoolEntity::getId, SchoolEntity::getName));
+        var normalizedRole = normalized(role);
 
         return staffProfileRepository.findAll().stream()
                 .filter(item -> normalized(schoolId) == null || item.getSchoolId().equalsIgnoreCase(schoolId.trim()))
-                .filter(item -> normalized(role) == null || item.getRole().name().equalsIgnoreCase(role.trim()))
+                .filter(item -> normalizedRole == null
+                        || item.getRole().apiValue().equalsIgnoreCase(normalizedRole)
+                        || item.getRole().name().equalsIgnoreCase(normalizedRole))
                 .sorted(Comparator.comparing(StaffProfileEntity::getFullName))
                 .map(item -> new StaffProfileResponse(
                         item.getId(),
@@ -84,7 +87,7 @@ public class DirectoryService {
                         item.getPositionTitle(),
                         item.getSchoolId(),
                         schoolNames.getOrDefault(item.getSchoolId(), item.getSchoolId()),
-                        item.getRole().name()
+                        item.getRole().apiValue()
                 ))
                 .toList();
     }
@@ -161,6 +164,27 @@ public class DirectoryService {
     public Map<String, StaffProfileEntity> getStaffByUsername() {
         return staffProfileRepository.findAll().stream()
                 .collect(Collectors.toMap(StaffProfileEntity::getUsername, Function.identity(), (left, right) -> left));
+    }
+
+    public List<StaffProfileEntity> getStaffByUsernames(List<String> usernames) {
+        var requested = usernames == null ? java.util.Set.<String>of() : usernames.stream()
+                .map(this::normalized)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (requested.isEmpty()) {
+            return List.of();
+        }
+        return staffProfileRepository.findAll().stream()
+                .filter(item -> requested.contains(item.getUsername()))
+                .sorted(Comparator.comparing(StaffProfileEntity::getFullName))
+                .toList();
+    }
+
+    public List<String> getCurrentStudentCourseIds(String username) {
+        return studentProfileRepository.findByUsername(username)
+                .map(StudentProfileEntity::getCurrentCourseIdsCsv)
+                .map(CourseMetadataSupport::parseCsv)
+                .orElse(List.of());
     }
 
     private String normalized(String value) {

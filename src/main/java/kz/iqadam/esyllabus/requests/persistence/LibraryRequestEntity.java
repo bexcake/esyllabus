@@ -23,6 +23,9 @@ public class LibraryRequestEntity {
     @Column(length = 128, nullable = false)
     private String requesterUsername;
 
+    @Column(length = 64)
+    private String syllabusId;
+
     @Column(length = 255, nullable = false)
     private String requesterName;
 
@@ -91,6 +94,14 @@ public class LibraryRequestEntity {
 
     public void setRequesterUsername(String requesterUsername) {
         this.requesterUsername = requesterUsername;
+    }
+
+    public String getSyllabusId() {
+        return syllabusId;
+    }
+
+    public void setSyllabusId(String syllabusId) {
+        this.syllabusId = syllabusId;
     }
 
     public String getRequesterName() {

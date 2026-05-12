@@ -26,6 +26,9 @@ public class SyllabusEntity {
     @Column(nullable = false, length = 255)
     private String ownerEmail;
 
+    @Column(length = 128)
+    private String directorUsername;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private SyllabusStatus status;
@@ -54,6 +57,15 @@ public class SyllabusEntity {
 
     @Column(length = 1000)
     private String reviewComment;
+
+    @Column(length = 2000)
+    private String reviewerUsernamesCsv;
+
+    @Column(length = 2000)
+    private String approvedReviewerUsernamesCsv;
+
+    @Column(length = 64)
+    private String linkedLibraryRequestId;
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -105,6 +117,14 @@ public class SyllabusEntity {
 
     public void setStatus(SyllabusStatus status) {
         this.status = status;
+    }
+
+    public String getDirectorUsername() {
+        return directorUsername;
+    }
+
+    public void setDirectorUsername(String directorUsername) {
+        this.directorUsername = directorUsername;
     }
 
     public String getTitle() {
@@ -169,6 +189,30 @@ public class SyllabusEntity {
 
     public void setReviewComment(String reviewComment) {
         this.reviewComment = reviewComment;
+    }
+
+    public String getReviewerUsernamesCsv() {
+        return reviewerUsernamesCsv;
+    }
+
+    public void setReviewerUsernamesCsv(String reviewerUsernamesCsv) {
+        this.reviewerUsernamesCsv = reviewerUsernamesCsv;
+    }
+
+    public String getApprovedReviewerUsernamesCsv() {
+        return approvedReviewerUsernamesCsv;
+    }
+
+    public void setApprovedReviewerUsernamesCsv(String approvedReviewerUsernamesCsv) {
+        this.approvedReviewerUsernamesCsv = approvedReviewerUsernamesCsv;
+    }
+
+    public String getLinkedLibraryRequestId() {
+        return linkedLibraryRequestId;
+    }
+
+    public void setLinkedLibraryRequestId(String linkedLibraryRequestId) {
+        this.linkedLibraryRequestId = linkedLibraryRequestId;
     }
 
     public Instant getCreatedAt() {

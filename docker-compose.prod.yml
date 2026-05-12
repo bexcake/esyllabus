@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: esyllabus-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - esyllabus-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - esyllabus-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: esyllabus-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      APP_USER_1_USERNAME: ${APP_USER_1_USERNAME}
+      APP_USER_1_PASSWORD: ${APP_USER_1_PASSWORD}
+      APP_USER_1_ROLES: ${APP_USER_1_ROLES}
+
+      APP_USER_2_USERNAME: ${APP_USER_2_USERNAME}
+      APP_USER_2_PASSWORD: ${APP_USER_2_PASSWORD}
+      APP_USER_2_ROLES: ${APP_USER_2_ROLES}
+
+      APP_USER_3_USERNAME: ${APP_USER_3_USERNAME}
+      APP_USER_3_PASSWORD: ${APP_USER_3_PASSWORD}
+      APP_USER_3_ROLES: ${APP_USER_3_ROLES}
+
+      APP_USER_4_USERNAME: ${APP_USER_4_USERNAME}
+      APP_USER_4_PASSWORD: ${APP_USER_4_PASSWORD}
+      APP_USER_4_ROLES: ${APP_USER_4_ROLES}
+
+      APP_USER_5_USERNAME: ${APP_USER_5_USERNAME}
+      APP_USER_5_PASSWORD: ${APP_USER_5_PASSWORD}
+      APP_USER_5_ROLES: ${APP_USER_5_ROLES}
+
+      APP_USER_6_USERNAME: ${APP_USER_6_USERNAME}
+      APP_USER_6_PASSWORD: ${APP_USER_6_PASSWORD}
+      APP_USER_6_ROLES: ${APP_USER_6_ROLES}
+    ports:
+      - "${APP_PORT}:8080"
+    networks:
+      - esyllabus-network
+
+volumes:
+  esyllabus-postgres-data:
+
+networks:
+  esyllabus-network:
+    name: esyllabus-network

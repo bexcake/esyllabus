@@ -70,7 +70,13 @@ public class DirectoryService {
             new DepartmentSeed("department-computer-science", "Department of Computer Science", "school-computing"),
             new DepartmentSeed("department-data-ai", "Department of Data and AI", "school-computing"),
             new DepartmentSeed("department-economics-finance", "Department of Economics and Finance", "school-business"),
-            new DepartmentSeed("department-operations-management", "Department of Operations and Management", "school-business")
+            new DepartmentSeed("department-operations-management", "Department of Operations and Management", "school-business"),
+            new DepartmentSeed("department-energy-systems", "Department of Energy Systems", "school-engineering"),
+            new DepartmentSeed("department-civil-automation", "Department of Civil and Automation Engineering", "school-engineering"),
+            new DepartmentSeed("department-public-health", "Department of Public Health", "school-health"),
+            new DepartmentSeed("department-pharmacy-health-it", "Department of Pharmacy and Health Informatics", "school-health"),
+            new DepartmentSeed("department-curriculum-leadership", "Department of Curriculum and Leadership", "school-education"),
+            new DepartmentSeed("department-psychology-languages", "Department of Psychology and Languages", "school-education")
     );
 
     private final SchoolRepository schoolRepository;
@@ -296,6 +302,7 @@ public class DirectoryService {
     }
 
     public List<StudentResponse> getStudents(String search) {
+        var schoolNames = getSchoolNames();
         var coursesById = courseRepository.findAll().stream()
                 .collect(Collectors.toMap(CourseEntity::getId, Function.identity(), (left, right) -> left));
 
@@ -310,6 +317,11 @@ public class DirectoryService {
                         student.getFullName(),
                         student.getEmail(),
                         student.getCourseNumber(),
+                        student.getSchoolId(),
+                        schoolNames.getOrDefault(student.getSchoolId(), student.getSchoolId()),
+                        student.getProgramName(),
+                        student.getDepartmentId(),
+                        student.getDepartmentName(),
                         student.getGroupName(),
                         CourseMetadataSupport.parseCsv(student.getCurrentCourseIdsCsv()).stream()
                                 .map(coursesById::get)
@@ -327,6 +339,7 @@ public class DirectoryService {
     public StudentResponse getCurrentStudent(String username) {
         var student = studentProfileRepository.findByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Student profile not found"));
+        var schoolNames = getSchoolNames();
         var coursesById = courseRepository.findAll().stream()
                 .collect(Collectors.toMap(CourseEntity::getId, Function.identity(), (left, right) -> left));
 
@@ -336,6 +349,11 @@ public class DirectoryService {
                 student.getFullName(),
                 student.getEmail(),
                 student.getCourseNumber(),
+                student.getSchoolId(),
+                schoolNames.getOrDefault(student.getSchoolId(), student.getSchoolId()),
+                student.getProgramName(),
+                student.getDepartmentId(),
+                student.getDepartmentName(),
                 student.getGroupName(),
                 CourseMetadataSupport.parseCsv(student.getCurrentCourseIdsCsv()).stream()
                         .map(coursesById::get)

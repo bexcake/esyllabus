@@ -8,6 +8,11 @@ public record StudentResponse(
         String fullName,
         String email,
         int courseNumber,
+        String schoolId,
+        String schoolName,
+        String programName,
+        String departmentId,
+        String departmentName,
         String groupName,
         List<CurrentCourseResponse> currentCourses
 ) {

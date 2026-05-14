@@ -25,6 +25,18 @@ public class StudentProfileEntity {
     @Column(nullable = false)
     private int courseNumber;
 
+    @Column(length = 64)
+    private String schoolId;
+
+    @Column(length = 255)
+    private String programName;
+
+    @Column(length = 64)
+    private String departmentId;
+
+    @Column(length = 255)
+    private String departmentName;
+
     @Column(length = 64, nullable = false)
     private String groupName;
 
@@ -69,6 +81,38 @@ public class StudentProfileEntity {
 
     public void setCourseNumber(int courseNumber) {
         this.courseNumber = courseNumber;
+    }
+
+    public String getSchoolId() {
+        return schoolId;
+    }
+
+    public void setSchoolId(String schoolId) {
+        this.schoolId = schoolId;
+    }
+
+    public String getProgramName() {
+        return programName;
+    }
+
+    public void setProgramName(String programName) {
+        this.programName = programName;
+    }
+
+    public String getDepartmentId() {
+        return departmentId;
+    }
+
+    public void setDepartmentId(String departmentId) {
+        this.departmentId = departmentId;
+    }
+
+    public String getDepartmentName() {
+        return departmentName;
+    }
+
+    public void setDepartmentName(String departmentName) {
+        this.departmentName = departmentName;
     }
 
     public String getGroupName() {

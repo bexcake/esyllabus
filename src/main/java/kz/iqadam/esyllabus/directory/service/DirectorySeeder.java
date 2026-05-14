@@ -46,6 +46,7 @@ public class DirectorySeeder implements CommandLineRunner {
         upsertStaff(createStaff("staff-teacher", "teacher", "Aigerim Sadykova", "a.sadykova@iqadam.kz", "Main campus", "B-204", "Senior Teacher", "school-public-policy", StaffRole.TEACHER));
         upsertStaff(createStaff("staff-teacher-colleague", "teacher-colleague", "Marat Tulegenov", "m.tulegenov@iqadam.kz", "Main campus", "B-212", "Teacher", "school-public-policy", StaffRole.TEACHER));
         upsertStaff(createStaff("staff-teacher-digital", "teacher-digital", "Leila Baimurat", "l.baimurat@iqadam.kz", "Innovation hub", "C-214", "Teacher", "school-computing", StaffRole.TEACHER));
+        upsertStaff(createStaff("staff-teacher-business", "teacher-business", "Madina Akhmetova", "m.akhmetova@iqadam.kz", "Business center", "D-118", "Teacher", "school-business", StaffRole.TEACHER));
         upsertStaff(createStaff("staff-director", "director", "Dana Utegenova", "d.utegenova@iqadam.kz", "Main campus", "A-101", "Director of School", "school-public-policy", StaffRole.SCHOOL_DIRECTOR));
         upsertStaff(createStaff("staff-librarian", "librarian", "Maira Zhanatova", "library@iqadam.kz", "Library building", "L-12", "Chief Librarian", "school-public-policy", StaffRole.LIBRARIAN));
 

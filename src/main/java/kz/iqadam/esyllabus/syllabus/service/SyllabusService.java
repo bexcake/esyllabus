@@ -26,6 +26,7 @@ import kz.iqadam.esyllabus.syllabus.api.CourseCatalogItemResponse;
 import kz.iqadam.esyllabus.syllabus.api.ImportLibraryResourcesRequest;
 import kz.iqadam.esyllabus.syllabus.api.MySyllabusCardResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusCreateRequest;
+import kz.iqadam.esyllabus.syllabus.api.SyllabusMetadataOptionsResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewQueueItemResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewerResponse;
@@ -117,6 +118,14 @@ public class SyllabusService {
     }
 
     @Transactional(readOnly = true)
+    public List<CourseCatalogItemResponse> getCurrentStudentCourses(CurrentUser user) {
+        if (!user.hasAnyRole("STUDENT")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only students can use this endpoint");
+        }
+        return getCoursesForStudent(user, null, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
     public List<SyllabusReviewQueueItemResponse> getReviewQueue(CurrentUser user) {
         var result = new LinkedHashMap<String, SyllabusEntity>();
 
@@ -176,6 +185,29 @@ public class SyllabusService {
         syllabus.setApprovedReviewerUsernamesCsv("");
         syllabus.setReviewComment(null);
         return toResponse(syllabusRepository.save(syllabus));
+    }
+
+    @Transactional(readOnly = true)
+    public SyllabusMetadataOptionsResponse getMetadataOptions(CurrentUser user, String syllabusId) {
+        var syllabus = findSyllabus(syllabusId);
+        assertCanRead(user, syllabus);
+
+        var owner = directoryService.getRequiredStaffProfile(syllabus.getOwnerEmail());
+        var schoolId = owner.getSchoolId();
+
+        return new SyllabusMetadataOptionsResponse(
+                directoryService.getAllowedInstructors(schoolId),
+                directoryService.getAllowedReviewers(schoolId, syllabusId),
+                directoryService.getSchools(),
+                directoryService.getPrograms(schoolId, null, null),
+                directoryService.getDepartments(schoolId, null),
+                directoryService.getAcademicYears(),
+                directoryService.getDegreeLevels(),
+                directoryService.getCourseTypes(),
+                directoryService.getAssessmentStages(),
+                directoryService.getTrimesters(),
+                directoryService.getLanguages()
+        );
     }
 
     @Transactional(readOnly = true)

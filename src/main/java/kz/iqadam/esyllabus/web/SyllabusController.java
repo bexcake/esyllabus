@@ -6,6 +6,7 @@ import kz.iqadam.esyllabus.security.CurrentUserService;
 import kz.iqadam.esyllabus.syllabus.api.ImportLibraryResourcesRequest;
 import kz.iqadam.esyllabus.syllabus.api.ReturnForFixRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusCreateRequest;
+import kz.iqadam.esyllabus.syllabus.api.SyllabusMetadataOptionsResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewQueueItemResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewersUpdateRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusResponse;
@@ -59,6 +60,14 @@ public class SyllabusController {
     @GetMapping("/{syllabusId}")
     public SyllabusResponse getSyllabus(Authentication authentication, @PathVariable String syllabusId) {
         return syllabusService.getSyllabus(currentUserService.getCurrentUser(authentication), syllabusId);
+    }
+
+    @GetMapping("/{syllabusId}/metadata-options")
+    public SyllabusMetadataOptionsResponse getMetadataOptions(
+            Authentication authentication,
+            @PathVariable String syllabusId
+    ) {
+        return syllabusService.getMetadataOptions(currentUserService.getCurrentUser(authentication), syllabusId);
     }
 
     @PutMapping("/{syllabusId}/reviewers")

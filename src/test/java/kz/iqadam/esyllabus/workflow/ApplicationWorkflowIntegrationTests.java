@@ -59,11 +59,94 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(jsonPath("$[0].cabinet").exists())
                 .andExpect(jsonPath("$[0].role").value("TEACHER"));
 
+        mockMvc.perform(get("/api/directory/staff/teacher")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("teacher"))
+                .andExpect(jsonPath("$.schoolId").value("school-public-policy"));
+
+        mockMvc.perform(get("/api/directory/staff/picker")
+                        .param("schoolId", "school-public-policy")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].username").exists())
+                .andExpect(jsonPath("$[0].schoolId").value("school-public-policy"));
+
+        mockMvc.perform(get("/api/directory/programs")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").exists())
+                .andExpect(jsonPath("$[0].code").exists())
+                .andExpect(jsonPath("$[0].degreeLevel").exists());
+
+        mockMvc.perform(get("/api/directory/departments")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").exists())
+                .andExpect(jsonPath("$[0].schoolName").exists());
+
+        mockMvc.perform(get("/api/directory/academic-years")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].value").exists());
+
+        mockMvc.perform(get("/api/directory/trimesters")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].value").exists());
+
+        mockMvc.perform(get("/api/directory/languages")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].value").exists());
+
+        mockMvc.perform(get("/api/directory/degree-levels")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].value").value("Bachelor"));
+
+        mockMvc.perform(get("/api/directory/course-types")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].value").value("Compulsory"));
+
+        mockMvc.perform(get("/api/directory/assessment-stages")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].value").value("Continuous assessment"));
+
         mockMvc.perform(get("/api/directory/students/me")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("student", "student123")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("student"))
                 .andExpect(jsonPath("$.currentCourses[0].id").exists());
+
+        var syllabusResponse = mockMvc.perform(post("/api/syllabi")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("courseId", "syllabus-public-policy-2026"))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String syllabusId = objectMapper.readTree(syllabusResponse).path("id").asText();
+
+        mockMvc.perform(get("/api/directory/reviewers")
+                        .param("syllabusId", syllabusId)
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].username").exists());
+
+        mockMvc.perform(get("/api/syllabi/{syllabusId}/metadata-options", syllabusId)
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowedInstructors[0].username").exists())
+                .andExpect(jsonPath("$.allowedReviewers[0].username").exists())
+                .andExpect(jsonPath("$.programs[0].id").exists())
+                .andExpect(jsonPath("$.departments[0].id").exists())
+                .andExpect(jsonPath("$.academicYears[0].value").exists())
+                .andExpect(jsonPath("$.assessmentStages[0].value").value("Continuous assessment"));
     }
 
     @Test
@@ -218,6 +301,12 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(syllabusId))
                 .andExpect(jsonPath("$.status").value("Published"));
+
+        mockMvc.perform(get("/api/students/me/courses")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("student", "student123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("eco-214"))
+                .andExpect(jsonPath("$[0].syllabusId").value(syllabusId));
 
         mockMvc.perform(get("/api/library/requests")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("librarian", "librarian123")))

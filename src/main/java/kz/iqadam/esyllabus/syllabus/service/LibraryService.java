@@ -2,8 +2,10 @@ package kz.iqadam.esyllabus.syllabus.service;
 
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import kz.iqadam.esyllabus.integration.megapro.MegaProClient;
 import kz.iqadam.esyllabus.integration.megapro.MegaProProperties;
@@ -12,6 +14,7 @@ import kz.iqadam.esyllabus.integration.megapro.MegaProResourceCacheRepository;
 import kz.iqadam.esyllabus.requests.service.LibraryRequestService;
 import kz.iqadam.esyllabus.security.CurrentUser;
 import kz.iqadam.esyllabus.syllabus.api.DisciplineCatalogItemResponse;
+import kz.iqadam.esyllabus.syllabus.api.LibraryBookTagResponse;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -111,6 +114,33 @@ public class LibraryService {
                             lastSynced
                     );
                 })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<LibraryBookTagResponse> getBookTags(String search) {
+        var normalizedSearch = normalized(search);
+        var countsByTag = new LinkedHashMap<String, Long>();
+
+        for (var item : megaProResourceCacheRepository.findAll()) {
+            for (var tag : CourseMetadataSupport.parseCsv(item.getDisciplineTagsCsv())) {
+                var normalizedTag = normalized(tag);
+                if (normalizedTag == null) {
+                    continue;
+                }
+                countsByTag.merge(normalizedTag, 1L, Long::sum);
+            }
+        }
+
+        return countsByTag.entrySet().stream()
+                .filter(entry -> normalizedSearch == null
+                        || entry.getKey().toLowerCase(Locale.ROOT).contains(normalizedSearch.toLowerCase(Locale.ROOT)))
+                .sorted(Map.Entry.<String, Long>comparingByKey(String.CASE_INSENSITIVE_ORDER))
+                .map(entry -> new LibraryBookTagResponse(
+                        entry.getKey(),
+                        entry.getKey(),
+                        entry.getValue()
+                ))
                 .toList();
     }
 

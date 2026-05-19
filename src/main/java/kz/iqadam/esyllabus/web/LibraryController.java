@@ -4,6 +4,7 @@ import java.util.List;
 import kz.iqadam.esyllabus.security.CurrentUserService;
 import kz.iqadam.esyllabus.syllabus.api.DisciplineCatalogItemResponse;
 import kz.iqadam.esyllabus.syllabus.api.LibraryBookResponse;
+import kz.iqadam.esyllabus.syllabus.api.LibraryBookTagResponse;
 import kz.iqadam.esyllabus.syllabus.service.LibraryService;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
@@ -53,6 +54,13 @@ public class LibraryController {
             @RequestParam(required = false) String search
     ) {
         return libraryService.getDisciplines(search);
+    }
+
+    @GetMapping("/book-tags")
+    public List<LibraryBookTagResponse> getBookTags(
+            @RequestParam(required = false) String search
+    ) {
+        return libraryService.getBookTags(search);
     }
 
     @PostMapping("/megapro/sync")

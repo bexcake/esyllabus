@@ -358,9 +358,6 @@ public class LibraryRequestService {
     }
 
     private void assertCanUseLibraryRequests(CurrentUser user) {
-        if (user.hasAnyRole("STUDENT")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Students cannot access library request workflow");
-        }
     }
 
     private void assertCanRead(CurrentUser user, LibraryRequestEntity entity) {

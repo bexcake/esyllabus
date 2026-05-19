@@ -1,15 +1,12 @@
 package kz.iqadam.esyllabus.web;
 
 import java.util.List;
-import kz.iqadam.esyllabus.directory.api.DepartmentDirectoryResponse;
 import kz.iqadam.esyllabus.directory.api.DirectoryOptionResponse;
 import kz.iqadam.esyllabus.directory.api.ProgramDirectoryResponse;
 import kz.iqadam.esyllabus.directory.api.SchoolResponse;
 import kz.iqadam.esyllabus.directory.api.StaffPickerOptionResponse;
 import kz.iqadam.esyllabus.directory.api.StaffProfileResponse;
-import kz.iqadam.esyllabus.directory.api.StudentResponse;
 import kz.iqadam.esyllabus.directory.service.DirectoryService;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,14 +35,6 @@ public class DirectoryController {
             @RequestParam(required = false) String search
     ) {
         return directoryService.getPrograms(schoolId, degreeLevel, search);
-    }
-
-    @GetMapping("/departments")
-    public List<DepartmentDirectoryResponse> getDepartments(
-            @RequestParam(required = false) String schoolId,
-            @RequestParam(required = false) String search
-    ) {
-        return directoryService.getDepartments(schoolId, search);
     }
 
     @GetMapping("/academic-years")
@@ -106,15 +95,5 @@ public class DirectoryController {
     @GetMapping("/staff/{username}")
     public StaffProfileResponse getStaffByUsername(@PathVariable String username) {
         return directoryService.getStaffByUsername(username);
-    }
-
-    @GetMapping("/students")
-    public List<StudentResponse> getStudents(@RequestParam(required = false) String search) {
-        return directoryService.getStudents(search);
-    }
-
-    @GetMapping("/students/me")
-    public StudentResponse getCurrentStudent(Authentication authentication) {
-        return directoryService.getCurrentStudent(authentication.getName());
     }
 }

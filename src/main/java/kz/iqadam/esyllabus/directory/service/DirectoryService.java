@@ -13,24 +13,19 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import kz.iqadam.esyllabus.directory.api.DepartmentDirectoryResponse;
 import kz.iqadam.esyllabus.directory.api.DirectoryOptionResponse;
 import kz.iqadam.esyllabus.directory.api.ProgramDirectoryResponse;
 import kz.iqadam.esyllabus.directory.api.SchoolResponse;
 import kz.iqadam.esyllabus.directory.api.StaffPickerOptionResponse;
 import kz.iqadam.esyllabus.directory.api.StaffProfileResponse;
-import kz.iqadam.esyllabus.directory.api.StudentResponse;
 import kz.iqadam.esyllabus.directory.model.StaffRole;
 import kz.iqadam.esyllabus.directory.persistence.SchoolEntity;
 import kz.iqadam.esyllabus.directory.persistence.SchoolRepository;
 import kz.iqadam.esyllabus.directory.persistence.StaffProfileEntity;
 import kz.iqadam.esyllabus.directory.persistence.StaffProfileRepository;
-import kz.iqadam.esyllabus.directory.persistence.StudentProfileEntity;
-import kz.iqadam.esyllabus.directory.persistence.StudentProfileRepository;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseEntity;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseRepository;
 import kz.iqadam.esyllabus.syllabus.persistence.SyllabusRepository;
-import kz.iqadam.esyllabus.syllabus.service.CourseMetadataSupport;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,37 +59,19 @@ public class DirectoryService {
     private static final List<String> TRIMESTER_ORDER = List.of("Autumn", "Spring", "Summer", "Winter");
     private static final List<String> LANGUAGE_ORDER = List.of("English", "Kazakh", "Russian");
 
-    private static final List<DepartmentSeed> DEPARTMENT_SEEDS = List.of(
-            new DepartmentSeed("department-public-policy", "Department of Public Policy", "school-public-policy"),
-            new DepartmentSeed("department-law-governance", "Department of Law and Governance", "school-public-policy"),
-            new DepartmentSeed("department-computer-science", "Department of Computer Science", "school-computing"),
-            new DepartmentSeed("department-data-ai", "Department of Data and AI", "school-computing"),
-            new DepartmentSeed("department-economics-finance", "Department of Economics and Finance", "school-business"),
-            new DepartmentSeed("department-operations-management", "Department of Operations and Management", "school-business"),
-            new DepartmentSeed("department-energy-systems", "Department of Energy Systems", "school-engineering"),
-            new DepartmentSeed("department-civil-automation", "Department of Civil and Automation Engineering", "school-engineering"),
-            new DepartmentSeed("department-public-health", "Department of Public Health", "school-health"),
-            new DepartmentSeed("department-pharmacy-health-it", "Department of Pharmacy and Health Informatics", "school-health"),
-            new DepartmentSeed("department-curriculum-leadership", "Department of Curriculum and Leadership", "school-education"),
-            new DepartmentSeed("department-psychology-languages", "Department of Psychology and Languages", "school-education")
-    );
-
     private final SchoolRepository schoolRepository;
     private final StaffProfileRepository staffProfileRepository;
-    private final StudentProfileRepository studentProfileRepository;
     private final CourseRepository courseRepository;
     private final SyllabusRepository syllabusRepository;
 
     public DirectoryService(
             SchoolRepository schoolRepository,
             StaffProfileRepository staffProfileRepository,
-            StudentProfileRepository studentProfileRepository,
             CourseRepository courseRepository,
             SyllabusRepository syllabusRepository
     ) {
         this.schoolRepository = schoolRepository;
         this.staffProfileRepository = staffProfileRepository;
-        this.studentProfileRepository = studentProfileRepository;
         this.courseRepository = courseRepository;
         this.syllabusRepository = syllabusRepository;
     }
@@ -138,24 +115,6 @@ public class DirectoryService {
                 .map(entry -> toProgramResponse(entry.getKey(), entry.getValue(), schoolNames))
                 .filter(program -> normalizedSearch == null || searchable(program).contains(normalizedSearch.toLowerCase(Locale.ROOT)))
                 .sorted(Comparator.comparing(ProgramDirectoryResponse::schoolName).thenComparing(ProgramDirectoryResponse::name))
-                .toList();
-    }
-
-    public List<DepartmentDirectoryResponse> getDepartments(String schoolId, String search) {
-        var schoolNames = getSchoolNames();
-        var normalizedSchoolId = normalized(schoolId);
-        var normalizedSearch = normalized(search);
-
-        return DEPARTMENT_SEEDS.stream()
-                .filter(item -> normalizedSchoolId == null || item.schoolId().equalsIgnoreCase(normalizedSchoolId))
-                .map(item -> new DepartmentDirectoryResponse(
-                        item.id(),
-                        item.name(),
-                        item.schoolId(),
-                        schoolNames.getOrDefault(item.schoolId(), item.schoolId())
-                ))
-                .filter(item -> normalizedSearch == null || searchable(item).contains(normalizedSearch.toLowerCase(Locale.ROOT)))
-                .sorted(Comparator.comparing(DepartmentDirectoryResponse::schoolName).thenComparing(DepartmentDirectoryResponse::name))
                 .toList();
     }
 
@@ -301,72 +260,6 @@ public class DirectoryService {
                 .toList();
     }
 
-    public List<StudentResponse> getStudents(String search) {
-        var schoolNames = getSchoolNames();
-        var coursesById = courseRepository.findAll().stream()
-                .collect(Collectors.toMap(CourseEntity::getId, Function.identity(), (left, right) -> left));
-
-        return studentProfileRepository.findAll().stream()
-                .filter(student -> normalized(search) == null
-                        || (student.getFullName() + " " + student.getGroupName()).toLowerCase(Locale.ROOT)
-                        .contains(search.trim().toLowerCase(Locale.ROOT)))
-                .sorted(Comparator.comparing(StudentProfileEntity::getFullName))
-                .map(student -> new StudentResponse(
-                        student.getId(),
-                        student.getUsername(),
-                        student.getFullName(),
-                        student.getEmail(),
-                        student.getCourseNumber(),
-                        student.getSchoolId(),
-                        schoolNames.getOrDefault(student.getSchoolId(), student.getSchoolId()),
-                        student.getProgramName(),
-                        student.getDepartmentId(),
-                        student.getDepartmentName(),
-                        student.getGroupName(),
-                        CourseMetadataSupport.parseCsv(student.getCurrentCourseIdsCsv()).stream()
-                                .map(coursesById::get)
-                                .filter(Objects::nonNull)
-                                .map(course -> new StudentResponse.CurrentCourseResponse(
-                                        course.getId(),
-                                        course.getCode(),
-                                        course.getTitle()
-                                ))
-                                .toList()
-                ))
-                .toList();
-    }
-
-    public StudentResponse getCurrentStudent(String username) {
-        var student = studentProfileRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Student profile not found"));
-        var schoolNames = getSchoolNames();
-        var coursesById = courseRepository.findAll().stream()
-                .collect(Collectors.toMap(CourseEntity::getId, Function.identity(), (left, right) -> left));
-
-        return new StudentResponse(
-                student.getId(),
-                student.getUsername(),
-                student.getFullName(),
-                student.getEmail(),
-                student.getCourseNumber(),
-                student.getSchoolId(),
-                schoolNames.getOrDefault(student.getSchoolId(), student.getSchoolId()),
-                student.getProgramName(),
-                student.getDepartmentId(),
-                student.getDepartmentName(),
-                student.getGroupName(),
-                CourseMetadataSupport.parseCsv(student.getCurrentCourseIdsCsv()).stream()
-                        .map(coursesById::get)
-                        .filter(Objects::nonNull)
-                        .map(course -> new StudentResponse.CurrentCourseResponse(
-                                course.getId(),
-                                course.getCode(),
-                                course.getTitle()
-                        ))
-                        .toList()
-        );
-    }
-
     public StaffProfileEntity getRequiredStaffProfile(String username) {
         return staffProfileRepository.findByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Current user is not mapped to staff directory"));
@@ -399,13 +292,6 @@ public class DirectoryService {
                 .filter(item -> requested.contains(item.getUsername()))
                 .sorted(Comparator.comparing(StaffProfileEntity::getFullName))
                 .toList();
-    }
-
-    public List<String> getCurrentStudentCourseIds(String username) {
-        return studentProfileRepository.findByUsername(username)
-                .map(StudentProfileEntity::getCurrentCourseIdsCsv)
-                .map(CourseMetadataSupport::parseCsv)
-                .orElse(List.of());
     }
 
     private ProgramDirectoryResponse toProgramResponse(
@@ -503,11 +389,6 @@ public class DirectoryService {
                 .toLowerCase(Locale.ROOT);
     }
 
-    private String searchable(DepartmentDirectoryResponse department) {
-        return (department.name() + " " + department.schoolName())
-                .toLowerCase(Locale.ROOT);
-    }
-
     private String searchable(StaffProfileEntity staff) {
         return (staff.getUsername() + " " + staff.getFullName() + " " + staff.getEmail() + " "
                 + Objects.toString(staff.getPositionTitle(), ""))
@@ -536,13 +417,6 @@ public class DirectoryService {
             String name,
             String schoolId,
             String degreeLevel
-    ) {
-    }
-
-    private record DepartmentSeed(
-            String id,
-            String name,
-            String schoolId
     ) {
     }
 }

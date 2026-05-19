@@ -82,19 +82,12 @@ public class SyllabusService {
             String language,
             String status
     ) {
-        return user.hasAnyRole("STUDENT")
-                ? getCoursesForStudent(user, search, degree, language, status)
-                : getCoursesForStaff(user, search, degree, language, status);
+        return getCoursesForStaff(user, search, degree, language, status);
     }
 
     @Transactional(readOnly = true)
     public CourseCatalogItemResponse getCourseById(CurrentUser user, String courseId) {
         var course = findCourse(courseId);
-        if (user.hasAnyRole("STUDENT")) {
-            var published = findPublishedStudentSyllabus(user, courseId);
-            return toCourseCatalogItem(course, published.getStatus(), published.getId());
-        }
-
         var latest = syllabusRepository.findTopByOwnerEmailAndCourseIdOrderByUpdatedAtDesc(user.email(), courseId).orElse(null);
         return toCourseCatalogItem(course, latest == null ? SyllabusStatus.DRAFT : latest.getStatus(), latest == null ? null : latest.getId());
     }
@@ -118,14 +111,6 @@ public class SyllabusService {
     }
 
     @Transactional(readOnly = true)
-    public List<CourseCatalogItemResponse> getCurrentStudentCourses(CurrentUser user) {
-        if (!user.hasAnyRole("STUDENT")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only students can use this endpoint");
-        }
-        return getCoursesForStudent(user, null, null, null, null);
-    }
-
-    @Transactional(readOnly = true)
     public List<SyllabusReviewQueueItemResponse> getReviewQueue(CurrentUser user) {
         var result = new LinkedHashMap<String, SyllabusEntity>();
 
@@ -135,7 +120,7 @@ public class SyllabusService {
                     .forEach(item -> result.put(item.getId(), item));
         }
 
-        if (!user.hasAnyRole("STUDENT", "LIBRARIAN")) {
+        if (!user.hasAnyRole("LIBRARIAN")) {
             syllabusRepository.findByStatusOrderByUpdatedAtDesc(SyllabusStatus.PENDING_COLLEAGUE_CONFIRMATION).stream()
                     .filter(item -> reviewerUsernames(item).contains(user.email()))
                     .forEach(item -> result.put(item.getId(), item));
@@ -200,7 +185,6 @@ public class SyllabusService {
                 directoryService.getAllowedReviewers(schoolId, syllabusId),
                 directoryService.getSchools(),
                 directoryService.getPrograms(schoolId, null, null),
-                directoryService.getDepartments(schoolId, null),
                 directoryService.getAcademicYears(),
                 directoryService.getDegreeLevels(),
                 directoryService.getCourseTypes(),
@@ -362,38 +346,6 @@ public class SyllabusService {
                 .toList();
     }
 
-    private List<CourseCatalogItemResponse> getCoursesForStudent(
-            CurrentUser user,
-            String search,
-            String degree,
-            String language,
-            String status
-    ) {
-        var currentCourseIds = new LinkedHashSet<>(directoryService.getCurrentStudentCourseIds(user.email()));
-        if (currentCourseIds.isEmpty()) {
-            return List.of();
-        }
-
-        var publishedByCourseId = syllabusRepository.findByStatusOrderByUpdatedAtDesc(SyllabusStatus.PUBLISHED).stream()
-                .filter(item -> currentCourseIds.contains(item.getCourseId()))
-                .collect(Collectors.toMap(
-                        SyllabusEntity::getCourseId,
-                        item -> item,
-                        (existing, ignored) -> existing
-                ));
-
-        return courseRepository.findAll().stream()
-                .filter(course -> currentCourseIds.contains(course.getId()))
-                .filter(course -> publishedByCourseId.containsKey(course.getId()))
-                .map(course -> {
-                    var published = publishedByCourseId.get(course.getId());
-                    return toCourseCatalogItem(course, published.getStatus(), published.getId());
-                })
-                .filter(item -> filterCourse(item, search, degree, language, status))
-                .sorted(Comparator.comparing(CourseCatalogItemResponse::title))
-                .toList();
-    }
-
     private void syncSyllabusFromContent(SyllabusEntity syllabus, JsonNode content) {
         var normalized = normalizeContent(content);
         var metrics = metricsCalculator.calculate(normalized);
@@ -542,15 +494,6 @@ public class SyllabusService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found"));
     }
 
-    private SyllabusEntity findPublishedStudentSyllabus(CurrentUser user, String courseId) {
-        var currentCourseIds = directoryService.getCurrentStudentCourseIds(user.email());
-        if (!currentCourseIds.contains(courseId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Student is not enrolled in this course");
-        }
-        return syllabusRepository.findTopByCourseIdAndStatusOrderByUpdatedAtDesc(courseId, SyllabusStatus.PUBLISHED)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Published syllabus not found"));
-    }
-
     private JsonNode readContent(SyllabusEntity syllabus) {
         try {
             return objectMapper.readTree(syllabus.getContentJson());
@@ -586,11 +529,6 @@ public class SyllabusService {
             return;
         }
         if (reviewerUsernames(syllabus).contains(user.email())) {
-            return;
-        }
-        if (user.hasAnyRole("STUDENT")
-                && syllabus.getStatus() == SyllabusStatus.PUBLISHED
-                && directoryService.getCurrentStudentCourseIds(user.email()).contains(syllabus.getCourseId())) {
             return;
         }
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to read this syllabus");

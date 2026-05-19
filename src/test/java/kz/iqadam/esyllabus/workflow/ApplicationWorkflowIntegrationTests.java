@@ -53,17 +53,6 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[5].id").exists());
 
-        mockMvc.perform(get("/api/directory/students")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].username").exists())
-                .andExpect(jsonPath("$[10].username").exists())
-                .andExpect(jsonPath("$[0].schoolId").exists())
-                .andExpect(jsonPath("$[0].programName").exists())
-                .andExpect(jsonPath("$[0].departmentName").exists())
-                .andExpect(jsonPath("$[0].groupName").exists())
-                .andExpect(jsonPath("$[0].currentCourses[0].id").exists());
-
         mockMvc.perform(get("/api/directory/staff")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
                 .andExpect(status().isOk())
@@ -99,12 +88,6 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(jsonPath("$[0].code").exists())
                 .andExpect(jsonPath("$[0].degreeLevel").exists());
 
-        mockMvc.perform(get("/api/directory/departments")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").exists())
-                .andExpect(jsonPath("$[0].schoolName").exists());
-
         mockMvc.perform(get("/api/directory/academic-years")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
                 .andExpect(status().isOk())
@@ -135,14 +118,6 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").value("Continuous assessment"));
 
-        mockMvc.perform(get("/api/directory/students/me")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("student", "student123")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("student"))
-                .andExpect(jsonPath("$.schoolId").value("school-public-policy"))
-                .andExpect(jsonPath("$.programName").value("Public Administration and Policy"))
-                .andExpect(jsonPath("$.currentCourses[0].id").exists());
-
         var syllabusResponse = mockMvc.perform(post("/api/syllabi")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -166,7 +141,6 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.allowedInstructors[0].username").exists())
                 .andExpect(jsonPath("$.allowedReviewers[0].username").exists())
                 .andExpect(jsonPath("$.programs[0].id").exists())
-                .andExpect(jsonPath("$.departments[0].id").exists())
                 .andExpect(jsonPath("$.academicYears[0].value").exists())
                 .andExpect(jsonPath("$.assessmentStages[0].value").value("Continuous assessment"));
     }
@@ -225,45 +199,6 @@ class ApplicationWorkflowIntegrationTests {
         assertThat(healthBachelorPrograms.size()).isGreaterThanOrEqualTo(2);
         assertThat(collectTexts(healthBachelorPrograms, "schoolId")).containsOnly("school-health");
         assertThat(collectTexts(healthBachelorPrograms, "degreeLevel")).containsOnly("Bachelor");
-
-        JsonNode departments = readJson(get("/api/directory/departments")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
-        assertThat(departments.size()).isGreaterThanOrEqualTo(12);
-        assertThat(collectTexts(departments, "schoolId")).hasSizeGreaterThanOrEqualTo(6);
-        assertThat(collectTexts(departments, "id")).contains(
-                "department-data-ai",
-                "department-pharmacy-health-it",
-                "department-curriculum-leadership"
-        );
-
-        JsonNode automationDepartments = readJson(get("/api/directory/departments")
-                .param("search", "automation")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
-        assertThat(automationDepartments.size()).isEqualTo(1);
-        assertThat(automationDepartments.get(0).path("id").asText()).isEqualTo("department-civil-automation");
-
-        JsonNode students = readJson(get("/api/directory/students")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
-        assertThat(students.size()).isGreaterThanOrEqualTo(15);
-        assertThat(collectTexts(students, "schoolId")).hasSizeGreaterThanOrEqualTo(6);
-        assertThat(collectTexts(students, "departmentId")).hasSizeGreaterThanOrEqualTo(12);
-        assertThat(collectTexts(students, "programName")).contains(
-                "Economics",
-                "Computer Science",
-                "Public Health",
-                "Education Leadership"
-        );
-        for (JsonNode student : students) {
-            assertThat(student.path("groupName").asText()).isNotBlank();
-            assertThat(student.path("currentCourses").isArray()).isTrue();
-        }
-
-        JsonNode searchedStudents = readJson(get("/api/directory/students")
-                .param("search", "PHR-23-1")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
-        assertThat(searchedStudents.size()).isEqualTo(1);
-        assertThat(searchedStudents.get(0).path("username").asText()).isEqualTo("student-health-2");
-        assertThat(searchedStudents.get(0).path("schoolId").asText()).isEqualTo("school-health");
     }
 
     @Test
@@ -341,12 +276,7 @@ class ApplicationWorkflowIntegrationTests {
     }
 
     @Test
-    void publishesSyllabusAfterColleagueAndDirectorApprovalAndShowsItToStudent() throws Exception {
-        mockMvc.perform(get("/api/courses")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("student", "student123")))
-                .andExpect(status().isOk())
-                .andExpect(content().json("[]"));
-
+    void publishesSyllabusAfterColleagueAndDirectorApprovalAndCreatesLibraryRequest() throws Exception {
         var syllabusResponse = mockMvc.perform(post("/api/syllabi")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -413,24 +343,11 @@ class ApplicationWorkflowIntegrationTests {
         String linkedLibraryRequestId = objectMapper.readTree(approvedResponse).path("linkedLibraryRequestId").asText();
         assertThat(linkedLibraryRequestId).isNotBlank();
 
-        mockMvc.perform(get("/api/courses")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("student", "student123")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value("syllabus-public-policy-2026"))
-                .andExpect(jsonPath("$[0].status").value("Published"))
-                .andExpect(jsonPath("$[0].syllabusId").value(syllabusId));
-
         mockMvc.perform(get("/api/syllabi/{syllabusId}", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("student", "student123")))
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(syllabusId))
                 .andExpect(jsonPath("$.status").value("Published"));
-
-        mockMvc.perform(get("/api/students/me/courses")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("student", "student123")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value("syllabus-public-policy-2026"))
-                .andExpect(jsonPath("$[0].syllabusId").value(syllabusId));
 
         mockMvc.perform(get("/api/library/requests")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("librarian", "librarian123")))

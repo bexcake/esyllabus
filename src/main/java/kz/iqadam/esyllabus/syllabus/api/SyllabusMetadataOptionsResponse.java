@@ -1,7 +1,6 @@
 package kz.iqadam.esyllabus.syllabus.api;
 
 import java.util.List;
-import kz.iqadam.esyllabus.directory.api.DepartmentDirectoryResponse;
 import kz.iqadam.esyllabus.directory.api.DirectoryOptionResponse;
 import kz.iqadam.esyllabus.directory.api.ProgramDirectoryResponse;
 import kz.iqadam.esyllabus.directory.api.SchoolResponse;
@@ -12,7 +11,6 @@ public record SyllabusMetadataOptionsResponse(
         List<StaffPickerOptionResponse> allowedReviewers,
         List<SchoolResponse> schools,
         List<ProgramDirectoryResponse> programs,
-        List<DepartmentDirectoryResponse> departments,
         List<DirectoryOptionResponse> academicYears,
         List<DirectoryOptionResponse> degreeLevels,
         List<DirectoryOptionResponse> courseTypes,

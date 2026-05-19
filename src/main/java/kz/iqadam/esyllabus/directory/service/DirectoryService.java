@@ -215,19 +215,19 @@ public class DirectoryService {
         final String effectiveSchoolId = resolvedSchoolId;
         final String effectiveExcludedUsername = excludedUsername;
         var schoolNames = getSchoolNames();
-        var results = new LinkedHashMap<String, StaffPickerOptionResponse>();
-
-        staffProfileRepository.findAll().stream()
-                .filter(item -> effectiveSchoolId == null || item.getSchoolId().equalsIgnoreCase(effectiveSchoolId))
+        return staffProfileRepository.findAll().stream()
                 .filter(item -> item.getRole() != StaffRole.LIBRARIAN)
                 .filter(item -> item.getRole() != StaffRole.SCHOOL_DIRECTOR)
                 .filter(item -> effectiveExcludedUsername == null || !item.getUsername().equalsIgnoreCase(effectiveExcludedUsername))
-                .sorted(Comparator.comparing(StaffProfileEntity::getFullName))
+                .sorted(staffPriorityComparator(effectiveSchoolId))
                 .map(item -> toStaffPickerOption(item, schoolNames.getOrDefault(item.getSchoolId(), item.getSchoolId())))
-                .forEach(item -> results.put(item.username(), item));
-
-        return results.values().stream()
-                .sorted(Comparator.comparing(StaffPickerOptionResponse::fullName))
+                .collect(Collectors.toMap(
+                        StaffPickerOptionResponse::username,
+                        item -> item,
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ))
+                .values().stream()
                 .toList();
     }
 
@@ -236,9 +236,8 @@ public class DirectoryService {
         var normalizedSchoolId = normalized(schoolId);
 
         return staffProfileRepository.findAll().stream()
-                .filter(item -> normalizedSchoolId == null || item.getSchoolId().equalsIgnoreCase(normalizedSchoolId))
                 .filter(item -> item.getRole() == StaffRole.SCHOOL_DIRECTOR)
-                .sorted(Comparator.comparing(StaffProfileEntity::getFullName))
+                .sorted(staffPriorityComparator(normalizedSchoolId))
                 .map(item -> toStaffPickerOption(item, schoolNames.getOrDefault(item.getSchoolId(), item.getSchoolId())))
                 .toList();
     }
@@ -394,6 +393,17 @@ public class DirectoryService {
         return value.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
+    }
+
+    private Comparator<StaffProfileEntity> staffPriorityComparator(String prioritizedSchoolId) {
+        return Comparator
+                .comparing((StaffProfileEntity item) -> isOutsidePrioritizedSchool(item, prioritizedSchoolId))
+                .thenComparing(StaffProfileEntity::getFullName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(StaffProfileEntity::getUsername, String.CASE_INSENSITIVE_ORDER);
+    }
+
+    private boolean isOutsidePrioritizedSchool(StaffProfileEntity item, String prioritizedSchoolId) {
+        return prioritizedSchoolId != null && !item.getSchoolId().equalsIgnoreCase(prioritizedSchoolId);
     }
 
     private String normalized(String value) {

@@ -570,7 +570,6 @@ public class SyllabusService {
     }
 
     private List<StaffProfileEntity> resolveReviewerProfiles(CurrentUser user, List<String> reviewerUsernames) {
-        var owner = directoryService.getRequiredStaffProfile(user.email());
         var usernames = reviewerUsernames == null ? List.<String>of() : reviewerUsernames.stream()
                 .map(this::normalized)
                 .filter(Objects::nonNull)
@@ -596,9 +595,6 @@ public class SyllabusService {
                     "School director cannot be added as a colleague reviewer because director approval happens last"
             );
         }
-        if (reviewers.stream().anyMatch(item -> !Objects.equals(item.getSchoolId(), owner.getSchoolId()))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only colleagues from the same school can be assigned for confirmation");
-        }
         return reviewers;
     }
 
@@ -615,7 +611,6 @@ public class SyllabusService {
     }
 
     private String resolveAssignedDirectorUsername(CurrentUser user, String directorUsername) {
-        var owner = directoryService.getRequiredStaffProfile(user.email());
         var resolvedDirectorUsername = normalized(directorUsername);
         if (resolvedDirectorUsername == null) {
             return resolveDirectorUsername(user, null);
@@ -624,9 +619,6 @@ public class SyllabusService {
         var directorProfile = directoryService.getRequiredStaffProfile(resolvedDirectorUsername);
         if (directorProfile.getRole() != StaffRole.SCHOOL_DIRECTOR) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected director must have SCHOOL_DIRECTOR role");
-        }
-        if (!Objects.equals(directorProfile.getSchoolId(), owner.getSchoolId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected director must belong to the same school as the syllabus owner");
         }
         return directorProfile.getUsername();
     }

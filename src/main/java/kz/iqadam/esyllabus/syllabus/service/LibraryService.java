@@ -195,13 +195,13 @@ public class LibraryService {
 
     private boolean matchesQuery(MegaProResourceCacheEntity entity, String query) {
         var tags = CourseMetadataSupport.parseCsv(entity.getDisciplineTagsCsv());
-        var searchable = String.join(" ", List.of(
+        var searchable = normalizeForSearch(String.join(" ", List.of(
                 safe(entity.getTitle()),
                 safe(entity.getAuthor()),
                 safe(entity.getDiscipline()),
                 String.join(" ", tags)
-        )).toLowerCase(Locale.ROOT);
-        return searchable.contains(query.toLowerCase(Locale.ROOT));
+        )));
+        return searchable.contains(normalizeForSearch(query));
     }
 
     private String normalized(String value) {
@@ -214,6 +214,14 @@ public class LibraryService {
 
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private String normalizeForSearch(String value) {
+        return safe(value)
+                .toLowerCase(Locale.ROOT)
+                .replace('ё', 'е')
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     public record BookSearchResult(

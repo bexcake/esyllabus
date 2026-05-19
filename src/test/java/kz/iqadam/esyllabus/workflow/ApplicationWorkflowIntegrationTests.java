@@ -377,6 +377,18 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(jsonPath("$[0].title").exists())
                 .andExpect(jsonPath("$[0].discipline").exists());
 
+        mockMvc.perform(get("/api/library/books")
+                        .param("query", "макроэкономика")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("Макроэкономика"));
+
+        mockMvc.perform(get("/api/library/books")
+                        .param("query", "мемлекеттік")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("Мемлекеттік саясатты талдау"));
+
         mockMvc.perform(get("/api/library/book-tags")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
                 .andExpect(status().isOk())

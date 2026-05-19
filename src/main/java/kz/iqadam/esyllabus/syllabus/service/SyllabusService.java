@@ -26,6 +26,7 @@ import kz.iqadam.esyllabus.syllabus.api.CourseCatalogItemResponse;
 import kz.iqadam.esyllabus.syllabus.api.ImportLibraryResourcesRequest;
 import kz.iqadam.esyllabus.syllabus.api.MySyllabusCardResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusCreateRequest;
+import kz.iqadam.esyllabus.syllabus.api.SyllabusDirectorUpdateRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusMetadataOptionsResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewQueueItemResponse;
@@ -120,7 +121,7 @@ public class SyllabusService {
                     .forEach(item -> result.put(item.getId(), item));
         }
 
-        if (!user.hasAnyRole("LIBRARIAN")) {
+        if (!user.hasAnyRole("LIBRARIAN") && !user.hasAnyRole("DIRECTOR")) {
             syllabusRepository.findByStatusOrderByUpdatedAtDesc(SyllabusStatus.PENDING_COLLEAGUE_CONFIRMATION).stream()
                     .filter(item -> reviewerUsernames(item).contains(user.email()))
                     .forEach(item -> result.put(item.getId(), item));
@@ -172,6 +173,15 @@ public class SyllabusService {
         return toResponse(syllabusRepository.save(syllabus));
     }
 
+    public SyllabusResponse updateDirector(CurrentUser user, String syllabusId, SyllabusDirectorUpdateRequest request) {
+        var syllabus = findSyllabus(syllabusId);
+        assertCanEdit(user, syllabus);
+
+        syllabus.setDirectorUsername(resolveAssignedDirectorUsername(user, request == null ? null : request.directorUsername()));
+        syllabus.setReviewComment(null);
+        return toResponse(syllabusRepository.save(syllabus));
+    }
+
     @Transactional(readOnly = true)
     public SyllabusMetadataOptionsResponse getMetadataOptions(CurrentUser user, String syllabusId) {
         var syllabus = findSyllabus(syllabusId);
@@ -183,6 +193,7 @@ public class SyllabusService {
         return new SyllabusMetadataOptionsResponse(
                 directoryService.getAllowedInstructors(schoolId),
                 directoryService.getAllowedReviewers(schoolId, syllabusId),
+                directoryService.getAllowedDirectors(schoolId),
                 directoryService.getSchools(),
                 directoryService.getPrograms(schoolId, null, null),
                 directoryService.getAcademicYears(),
@@ -222,7 +233,10 @@ public class SyllabusService {
             );
         }
 
-        syllabus.setDirectorUsername(resolveDirectorUsername(user, syllabus.getCourseId()));
+        syllabus.setDirectorUsername(resolveAssignedDirectorUsername(user, syllabus.getDirectorUsername()));
+        if (normalized(syllabus.getDirectorUsername()) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "School director must be selected before sending syllabus to review");
+        }
         syllabus.setApprovedReviewerUsernamesCsv("");
         syllabus.setReviewComment(null);
         syllabus.setStatus(reviewerUsernames(syllabus).isEmpty()
@@ -235,6 +249,12 @@ public class SyllabusService {
         var syllabus = findSyllabus(syllabusId);
         if (syllabus.getStatus() != SyllabusStatus.PENDING_COLLEAGUE_CONFIRMATION) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only syllabi pending colleague confirmation can be approved");
+        }
+        if (isDirectorForSyllabus(user, syllabus)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Director approval is the final step and becomes available only after all colleague confirmations"
+            );
         }
         if (!reviewerUsernames(syllabus).contains(user.email())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only assigned colleagues can approve this syllabus");
@@ -570,6 +590,12 @@ public class SyllabusService {
         if (reviewers.stream().anyMatch(item -> item.getRole() == StaffRole.LIBRARIAN)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Librarians cannot be added as syllabus reviewers");
         }
+        if (reviewers.stream().anyMatch(item -> item.getRole() == StaffRole.SCHOOL_DIRECTOR)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "School director cannot be added as a colleague reviewer because director approval happens last"
+            );
+        }
         if (reviewers.stream().anyMatch(item -> !Objects.equals(item.getSchoolId(), owner.getSchoolId()))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only colleagues from the same school can be assigned for confirmation");
         }
@@ -586,6 +612,23 @@ public class SyllabusService {
         }
         var owner = directoryService.getRequiredStaffProfile(user.email());
         return directoryService.getRequiredSchool(owner.getSchoolId()).getDirectorUsername();
+    }
+
+    private String resolveAssignedDirectorUsername(CurrentUser user, String directorUsername) {
+        var owner = directoryService.getRequiredStaffProfile(user.email());
+        var resolvedDirectorUsername = normalized(directorUsername);
+        if (resolvedDirectorUsername == null) {
+            return resolveDirectorUsername(user, null);
+        }
+
+        var directorProfile = directoryService.getRequiredStaffProfile(resolvedDirectorUsername);
+        if (directorProfile.getRole() != StaffRole.SCHOOL_DIRECTOR) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected director must have SCHOOL_DIRECTOR role");
+        }
+        if (!Objects.equals(directorProfile.getSchoolId(), owner.getSchoolId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected director must belong to the same school as the syllabus owner");
+        }
+        return directorProfile.getUsername();
     }
 
     private List<String> reviewerUsernames(SyllabusEntity entity) {

@@ -133,13 +133,16 @@ class ApplicationWorkflowIntegrationTests {
                         .param("syllabusId", syllabusId)
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].username").exists());
+                .andExpect(jsonPath("$[0].username").exists())
+                .andExpect(jsonPath("$[?(@.username == 'director')]").isEmpty());
 
         mockMvc.perform(get("/api/syllabi/{syllabusId}/metadata-options", syllabusId)
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.allowedInstructors[0].username").exists())
                 .andExpect(jsonPath("$.allowedReviewers[0].username").exists())
+                .andExpect(jsonPath("$.allowedReviewers[?(@.username == 'director')]").isEmpty())
+                .andExpect(jsonPath("$.allowedDirectors[0].username").value("director"))
                 .andExpect(jsonPath("$.programs[0].id").exists())
                 .andExpect(jsonPath("$.academicYears[0].value").exists())
                 .andExpect(jsonPath("$.assessmentStages[0].value").value("Continuous assessment"));
@@ -290,13 +293,34 @@ class ApplicationWorkflowIntegrationTests {
         String syllabusId = createdSyllabus.path("id").asText();
         assertThat(syllabusId).isNotBlank();
 
+        mockMvc.perform(put("/api/syllabi/{syllabusId}/director", syllabusId)
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("directorUsername", "director"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.directorUsername").value("director"));
+
+        mockMvc.perform(put("/api/syllabi/{syllabusId}/reviewers", syllabusId)
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("reviewerUsernames", List.of("teacher-colleague")))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.colleagueApprovals[0].username").value("teacher-colleague"))
+                .andExpect(jsonPath("$.colleagueApprovals[0].approved").value(false));
+
         mockMvc.perform(put("/api/syllabi/{syllabusId}/reviewers", syllabusId)
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("reviewerUsernames", List.of("director")))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.colleagueApprovals[0].username").value("director"))
-                .andExpect(jsonPath("$.colleagueApprovals[0].approved").value(false));
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("School director cannot be added as a colleague reviewer because director approval happens last"));
+
+        mockMvc.perform(put("/api/syllabi/{syllabusId}/director", syllabusId)
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("directorUsername", "director-business"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason("Selected director must belong to the same school as the syllabus owner"));
 
         var completedContent = buildCompleteSyllabusContent(
                 (ObjectNode) createdSyllabus.path("content").deepCopy(),
@@ -322,14 +346,19 @@ class ApplicationWorkflowIntegrationTests {
         mockMvc.perform(get("/api/syllabi/review-queue")
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("director", "director123")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(syllabusId))
-                .andExpect(jsonPath("$[0].colleagueApprovals[0].approved").value(false));
+                .andExpect(content().json("[]"));
 
         mockMvc.perform(post("/api/syllabi/{syllabusId}/colleague-approve", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("director", "director123")))
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher-colleague", "teacher123")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Pending Director Review"))
                 .andExpect(jsonPath("$.colleagueApprovals[0].approved").value(true));
+
+        mockMvc.perform(get("/api/syllabi/review-queue")
+                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("director", "director123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(syllabusId))
+                .andExpect(jsonPath("$[0].colleagueApprovals[0].approved").value(true));
 
         var approvedResponse = mockMvc.perform(post("/api/syllabi/{syllabusId}/approve", syllabusId)
                         .with(SecurityMockMvcRequestPostProcessors.httpBasic("director", "director123")))

@@ -220,31 +220,26 @@ public class DirectoryService {
         staffProfileRepository.findAll().stream()
                 .filter(item -> effectiveSchoolId == null || item.getSchoolId().equalsIgnoreCase(effectiveSchoolId))
                 .filter(item -> item.getRole() != StaffRole.LIBRARIAN)
+                .filter(item -> item.getRole() != StaffRole.SCHOOL_DIRECTOR)
                 .filter(item -> effectiveExcludedUsername == null || !item.getUsername().equalsIgnoreCase(effectiveExcludedUsername))
                 .sorted(Comparator.comparing(StaffProfileEntity::getFullName))
                 .map(item -> toStaffPickerOption(item, schoolNames.getOrDefault(item.getSchoolId(), item.getSchoolId())))
                 .forEach(item -> results.put(item.username(), item));
 
-        if (effectiveSchoolId != null) {
-            var school = getRequiredSchool(effectiveSchoolId);
-            if (!results.containsKey(school.getDirectorUsername())
-                    && (effectiveExcludedUsername == null || !school.getDirectorUsername().equalsIgnoreCase(effectiveExcludedUsername))) {
-                staffProfileRepository.findByUsername(school.getDirectorUsername())
-                        .map(item -> new StaffPickerOptionResponse(
-                                item.getUsername(),
-                                item.getFullName(),
-                                item.getEmail(),
-                                item.getPositionTitle(),
-                                effectiveSchoolId,
-                                schoolNames.getOrDefault(effectiveSchoolId, effectiveSchoolId),
-                                item.getRole().apiValue()
-                        ))
-                        .ifPresent(item -> results.put(item.username(), item));
-            }
-        }
-
         return results.values().stream()
                 .sorted(Comparator.comparing(StaffPickerOptionResponse::fullName))
+                .toList();
+    }
+
+    public List<StaffPickerOptionResponse> getAllowedDirectors(String schoolId) {
+        var schoolNames = getSchoolNames();
+        var normalizedSchoolId = normalized(schoolId);
+
+        return staffProfileRepository.findAll().stream()
+                .filter(item -> normalizedSchoolId == null || item.getSchoolId().equalsIgnoreCase(normalizedSchoolId))
+                .filter(item -> item.getRole() == StaffRole.SCHOOL_DIRECTOR)
+                .sorted(Comparator.comparing(StaffProfileEntity::getFullName))
+                .map(item -> toStaffPickerOption(item, schoolNames.getOrDefault(item.getSchoolId(), item.getSchoolId())))
                 .toList();
     }
 

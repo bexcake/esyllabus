@@ -6,6 +6,7 @@ import kz.iqadam.esyllabus.security.CurrentUserService;
 import kz.iqadam.esyllabus.syllabus.api.ImportLibraryResourcesRequest;
 import kz.iqadam.esyllabus.syllabus.api.ReturnForFixRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusCreateRequest;
+import kz.iqadam.esyllabus.syllabus.api.SyllabusDirectorUpdateRequest;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusMetadataOptionsResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewQueueItemResponse;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusReviewersUpdateRequest;
@@ -77,6 +78,15 @@ public class SyllabusController {
             @RequestBody(required = false) SyllabusReviewersUpdateRequest request
     ) {
         return syllabusService.updateReviewers(currentUserService.getCurrentUser(authentication), syllabusId, request);
+    }
+
+    @PutMapping("/{syllabusId}/director")
+    public SyllabusResponse updateDirector(
+            Authentication authentication,
+            @PathVariable String syllabusId,
+            @RequestBody(required = false) SyllabusDirectorUpdateRequest request
+    ) {
+        return syllabusService.updateDirector(currentUserService.getCurrentUser(authentication), syllabusId, request);
     }
 
     @PutMapping("/{syllabusId}")

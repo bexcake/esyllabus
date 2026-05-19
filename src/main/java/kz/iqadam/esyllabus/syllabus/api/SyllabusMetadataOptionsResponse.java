@@ -9,6 +9,7 @@ import kz.iqadam.esyllabus.directory.api.StaffPickerOptionResponse;
 public record SyllabusMetadataOptionsResponse(
         List<StaffPickerOptionResponse> allowedInstructors,
         List<StaffPickerOptionResponse> allowedReviewers,
+        List<StaffPickerOptionResponse> allowedDirectors,
         List<SchoolResponse> schools,
         List<ProgramDirectoryResponse> programs,
         List<DirectoryOptionResponse> academicYears,

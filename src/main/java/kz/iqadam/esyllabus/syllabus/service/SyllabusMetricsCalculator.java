@@ -12,29 +12,150 @@ public class SyllabusMetricsCalculator {
 
     public SyllabusMetrics calculate(JsonNode content) {
         var coreCompletion = new ArrayList<Boolean>();
-        coreCompletion.add(hasText(content, "title")
-                && hasText(content, "code")
-                && hasText(content, "degreeLevel")
-                && hasText(content, "program")
-                && hasText(content, "academicYear")
-                && hasText(content, "trimester")
-                && hasText(content, "languageOfInstruction"));
-        coreCompletion.add(arrayHasAny(content.path("instructors")));
-        coreCompletion.add(content.path("credits").asInt(0) > 0 && workloadIsComplete(content.path("workload")));
-        coreCompletion.add(hasText(content, "prerequisites") && hasText(content, "postrequisites"));
-        coreCompletion.add(hasMeaningfulText(content.path("overview").asText("")));
-        coreCompletion.add(stringArrayHasAny(content.path("goals")));
-        coreCompletion.add(stringArrayHasAny(content.path("learningOutcomes")));
-        coreCompletion.add(stringArrayHasAny(content.path("teachingMethods")));
-        coreCompletion.add(gradingIsComplete(content.path("gradingSchema")));
-        coreCompletion.add(hasMeaningfulText(content.path("academicIntegrity").asText("")));
-        coreCompletion.add(coursePoliciesComplete(content.path("coursePolicies")));
-        coreCompletion.add(hasMeaningfulText(content.path("inclusionStatements").asText("")));
-        coreCompletion.add(stringArrayHasAny(content.path("technologyEmployed")));
-        coreCompletion.add(resourcesComplete(content.path("resources")));
-        coreCompletion.add(abbreviationsComplete(content.path("abbreviations")));
-        coreCompletion.add(weeklyPlanComplete(content.path("weeklyPlan")));
-        coreCompletion.add(detailedPlanComplete(content.path("detailedPlan")));
+        var missingSections = new ArrayList<SyllabusMetrics.MissingSection>();
+
+        addCheck(
+                coreCompletion,
+                missingSections,
+                hasText(content, "title")
+                        && hasText(content, "code")
+                        && hasText(content, "degreeLevel")
+                        && hasText(content, "program")
+                        && hasText(content, "academicYear")
+                        && hasText(content, "trimester")
+                        && hasText(content, "languageOfInstruction"),
+                "core-info",
+                "Basic course information",
+                "Fill title, code, degree level, program, academic year, trimester, and language of instruction."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                arrayHasAny(content.path("instructors")),
+                "instructors",
+                "Instructors",
+                "Add at least one instructor."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                content.path("credits").asInt(0) > 0 && workloadIsComplete(content.path("workload")),
+                "credits-workload",
+                "Credits and workload",
+                "Set credits and make sure workload hours add up to totalHours."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                hasText(content, "prerequisites") && hasText(content, "postrequisites"),
+                "prerequisites-postrequisites",
+                "Prerequisites and postrequisites",
+                "Fill both prerequisites and postrequisites."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                hasMeaningfulText(content.path("overview").asText("")),
+                "overview",
+                "Course overview",
+                "Fill the overview section."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                stringArrayHasAny(content.path("goals")),
+                "goals",
+                "Course goals",
+                "Add at least one goal."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                stringArrayHasAny(content.path("learningOutcomes")),
+                "learning-outcomes",
+                "Learning outcomes",
+                "Add at least one learning outcome."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                stringArrayHasAny(content.path("teachingMethods")),
+                "teaching-methods",
+                "Teaching methods",
+                "Add at least one teaching method."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                gradingIsComplete(content.path("gradingSchema")),
+                "grading-schema",
+                "Grading schema",
+                "Add grading items with name and weight."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                hasMeaningfulText(content.path("academicIntegrity").asText("")),
+                "academic-integrity",
+                "Academic integrity",
+                "Fill the academic integrity section."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                coursePoliciesComplete(content.path("coursePolicies")),
+                "course-policies",
+                "Course policies",
+                "Fill attendance, late submissions, exams attestation, classroom behavior, communication policy, and other policies."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                hasMeaningfulText(content.path("inclusionStatements").asText("")),
+                "inclusion-statements",
+                "Inclusion statements",
+                "Fill the inclusion statements section."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                stringArrayHasAny(content.path("technologyEmployed")),
+                "technology-employed",
+                "Technology employed",
+                "Add at least one technology or platform."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                resourcesComplete(content.path("resources")),
+                "resources",
+                "Resources",
+                "Add at least one resource with a title."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                abbreviationsComplete(content.path("abbreviations")),
+                "abbreviations",
+                "Abbreviations",
+                "Add at least one abbreviation with short form and meaning."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                weeklyPlanComplete(content.path("weeklyPlan")),
+                "weekly-plan",
+                "Weekly plan",
+                "Add at least one weekly plan item with a topic."
+        );
+        addCheck(
+                coreCompletion,
+                missingSections,
+                detailedPlanComplete(content.path("detailedPlan")),
+                "detailed-plan",
+                "Detailed plan",
+                "Add at least one detailed plan item with lecture topics."
+        );
 
         var additionalCompletion = additionalCompletion(content.path("optionalSections"))
                 + additionalCompletion(content.path("customSections"));
@@ -44,7 +165,21 @@ public class SyllabusMetricsCalculator {
                 + safeArraySize(content.path("customSections"));
 
         var progress = sectionsTotal == 0 ? 0 : Math.toIntExact(Math.round((sectionsCompleted * 100.0) / sectionsTotal));
-        return new SyllabusMetrics(progress, sectionsCompleted, sectionsTotal);
+        return new SyllabusMetrics(progress, sectionsCompleted, sectionsTotal, List.copyOf(missingSections));
+    }
+
+    private void addCheck(
+            List<Boolean> coreCompletion,
+            List<SyllabusMetrics.MissingSection> missingSections,
+            boolean complete,
+            String key,
+            String label,
+            String hint
+    ) {
+        coreCompletion.add(complete);
+        if (!complete) {
+            missingSections.add(new SyllabusMetrics.MissingSection(key, label, hint));
+        }
     }
 
     private int additionalCompletion(JsonNode sections) {

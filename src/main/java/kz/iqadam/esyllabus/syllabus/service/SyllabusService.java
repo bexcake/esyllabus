@@ -216,9 +216,9 @@ public class SyllabusService {
 
         var metrics = metricsCalculator.calculate(readContent(syllabus));
         if (!metrics.readyForReview()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Syllabus is not complete yet. Fill all sections before sending to review."
+            throw new SyllabusReviewValidationException(
+                    "Syllabus is not complete yet. Fill all required sections before sending to review.",
+                    metrics
             );
         }
 

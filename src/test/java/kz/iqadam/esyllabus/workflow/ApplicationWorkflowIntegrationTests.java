@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
@@ -38,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "digital-university.jwt.enabled=true",
         "digital-university.jwt.secret=dGVzdC1kdS1zZWNyZXQ="
 })
+@Import(WorkflowTestFixturesConfiguration.class)
 class ApplicationWorkflowIntegrationTests {
 
     private static final String SECRET = "test-du-secret";

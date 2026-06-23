@@ -15,6 +15,9 @@ import kz.iqadam.esyllabus.integration.digital.persistence.DigitalUniversityCach
 import kz.iqadam.esyllabus.integration.digital.persistence.DigitalUniversityProgramEntity;
 import kz.iqadam.esyllabus.integration.digital.persistence.DigitalUniversityProgramRepository;
 import kz.iqadam.esyllabus.security.DigitalUniversityUserProvisioningService;
+import kz.iqadam.esyllabus.syllabus.persistence.CourseEntity;
+import kz.iqadam.esyllabus.syllabus.persistence.CourseRepository;
+import kz.iqadam.esyllabus.syllabus.service.CourseMetadataSupport;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,7 @@ public class DigitalUniversityDirectoryCacheService {
     private final DigitalUniversityProperties properties;
     private final DigitalUniversityCacheEntryRepository cacheEntryRepository;
     private final DigitalUniversityProgramRepository programRepository;
+    private final CourseRepository courseRepository;
     private final DigitalUniversityUserProvisioningService userProvisioningService;
     private final ObjectMapper objectMapper;
 
@@ -40,6 +44,7 @@ public class DigitalUniversityDirectoryCacheService {
             DigitalUniversityProperties properties,
             DigitalUniversityCacheEntryRepository cacheEntryRepository,
             DigitalUniversityProgramRepository programRepository,
+            CourseRepository courseRepository,
             DigitalUniversityUserProvisioningService userProvisioningService,
             ObjectMapper objectMapper
     ) {
@@ -47,6 +52,7 @@ public class DigitalUniversityDirectoryCacheService {
         this.properties = properties;
         this.cacheEntryRepository = cacheEntryRepository;
         this.programRepository = programRepository;
+        this.courseRepository = courseRepository;
         this.userProvisioningService = userProvisioningService;
         this.objectMapper = objectMapper;
     }
@@ -99,6 +105,7 @@ public class DigitalUniversityDirectoryCacheService {
                 pageSize,
                 maxPages
         );
+        teacherDisciplines.forEach(item -> upsertCourseFromTeacherDiscipline(item, now));
         cache(TEACHER_DISCIPLINES_CACHE_KEY, teacherDisciplines, now, expiresAt);
 
         cache(REFERENCE_DATA_CACHE_KEY, List.of(), now, expiresAt);
@@ -126,6 +133,50 @@ public class DigitalUniversityDirectoryCacheService {
         entity.setRawJson(writeJson(item));
         entity.setSyncedAt(now);
         programRepository.save(entity);
+    }
+
+    private void upsertCourseFromTeacherDiscipline(JsonNode item, Instant now) {
+        var subjectId = longValue(item.path("subjectId"));
+        if (subjectId == null) {
+            return;
+        }
+
+        var entity = courseRepository.findById("du-subject-" + subjectId)
+                .orElseGet(CourseEntity::new);
+        entity.setId("du-subject-" + subjectId);
+        entity.setTitle(firstNonBlank(
+                namedRef(item.path("subject")),
+                namedRef(item.path("discipline")),
+                normalized(item.path("subjectName").asText(null)),
+                normalized(item.path("disciplineName").asText(null)),
+                normalized(item.path("nameEn").asText(null)),
+                normalized(item.path("nameRu").asText(null)),
+                normalized(item.path("nameKk").asText(null)),
+                "Subject " + subjectId
+        ));
+        entity.setCode(firstNonBlank(
+                normalized(item.path("subjectCode").asText(null)),
+                normalized(item.path("code").asText(null)),
+                "DU-" + subjectId
+        ));
+        entity.setProgram(firstNonBlank(
+                namedRef(item.path("program")),
+                namedRef(item.path("educationProgram")),
+                namedRef(item.path("degree")),
+                "Digital University"
+        ));
+        var schoolId = longValue(item.path("school").path("id"));
+        entity.setSchoolId(schoolId == null ? null : String.valueOf(schoolId));
+        entity.setDegreeLevel(firstNonBlank(namedRef(item.path("degree")), "Program"));
+        entity.setAcademicYear(academicYear(item, now));
+        entity.setTrimester(termName(item.path("term")));
+        entity.setLanguageOfInstruction(firstNonBlank(langName(item.path("languageName")), "English"));
+        entity.setCredits(Math.max(1, integerValue(item.path("credits"), 1)));
+        entity.setInstructorsCsv(instructorsCsv(item.path("teachers")));
+        entity.setDisciplineTagsCsv(CourseMetadataSupport.toCsv(
+                CourseMetadataSupport.defaultTags(entity.getTitle(), entity.getProgram(), entity.getCode())
+        ));
+        courseRepository.save(entity);
     }
 
     private List<JsonNode> collectPaged(IntFunction<JsonNode> fetchPage, int pageSize, int maxPages) {
@@ -223,6 +274,75 @@ public class DigitalUniversityDirectoryCacheService {
             return null;
         }
         return value.intValue();
+    }
+
+    private int integerValue(JsonNode node, int fallback) {
+        var value = integerValue(node);
+        return value == null ? fallback : value;
+    }
+
+    private String academicYear(JsonNode item, Instant now) {
+        var studyYears = item.path("studyYears");
+        if (studyYears.isArray() && !studyYears.isEmpty()) {
+            var first = normalized(studyYears.get(0).asText(null));
+            if (first != null) {
+                return first;
+            }
+        }
+        var currentYear = java.time.LocalDate.ofInstant(now, java.time.ZoneId.systemDefault()).getYear();
+        return currentYear + "-" + (currentYear + 1);
+    }
+
+    private String termName(JsonNode termNode) {
+        var term = integerValue(termNode);
+        return term == null ? "Term" : "Term " + term;
+    }
+
+    private String langName(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        return firstNonBlank(
+                normalized(node.path("en").asText(null)),
+                normalized(node.path("ru").asText(null)),
+                normalized(node.path("kk").asText(null))
+        );
+    }
+
+    private String instructorsCsv(JsonNode teachers) {
+        if (!teachers.isArray()) {
+            return "";
+        }
+        var names = new ArrayList<String>();
+        for (var teacher : teachers) {
+            names.add(firstNonBlank(
+                    normalized(teacher.path("fullName").asText(null)),
+                    String.join(" ", List.of(
+                            Objects.toString(normalized(teacher.path("lastName").asText(null)), ""),
+                            Objects.toString(normalized(teacher.path("firstName").asText(null)), ""),
+                            Objects.toString(normalized(teacher.path("patronymic").asText(null)), "")
+                    )).trim()
+            ));
+        }
+        return String.join("|", names.stream()
+                .map(this::normalized)
+                .filter(Objects::nonNull)
+                .toList());
+    }
+
+    private String namedRef(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        return firstNonBlank(
+                normalized(node.path("nameEn").asText(null)),
+                normalized(node.path("nameRu").asText(null)),
+                normalized(node.path("nameKk").asText(null)),
+                normalized(node.path("en").asText(null)),
+                normalized(node.path("ru").asText(null)),
+                normalized(node.path("kk").asText(null)),
+                normalized(node.path("name").asText(null))
+        );
     }
 
     private String writeJson(JsonNode node) {

@@ -35,21 +35,23 @@ class DigitalUniversityUserProvisioningServiceTests {
     private FakeDigitalUniversityBridgeClient bridgeClient;
 
     @Test
-    void provisionsEmployeeFromJwtSubjectAndAssignsDirectorRoleFromSchoolHead() {
+    void provisionsEmployeeFromJwtUserIdAndAssignsDirectorRoleFromSchoolHead() {
         var claims = new DigitalUniversityJwtClaims(
-                "1001",
-                "1001",
-                1001L,
+                "5001",
+                "5001",
+                5001L,
                 Instant.now().plus(Duration.ofMinutes(30)),
                 Set.of(),
-                Map.of("sub", 1001)
+                Map.of("sub", 5001)
         );
 
         var user = provisioningService.provision(claims, "du-token");
 
+        assertThat(bridgeClient.employeesToken).isEqualTo("du-token");
         assertThat(bridgeClient.employeeToken).isEqualTo("du-token");
         assertThat(user.email()).isEqualTo("director@astanait.edu.kz");
         assertThat(user.employeeId()).isEqualTo(1001L);
+        assertThat(user.userId()).isEqualTo(5001L);
         assertThat(user.roles()).containsExactly("DIRECTOR");
         assertThat(user.schoolId()).isEqualTo("7");
         assertThat(user.duProfile().path("employeeId").asLong()).isEqualTo(1001L);
@@ -75,6 +77,7 @@ class DigitalUniversityUserProvisioningServiceTests {
 
         private final JsonNodeFactory json = JsonNodeFactory.instance;
         private String employeeToken;
+        private String employeesToken;
 
         @Override
         public JsonNode getStudentByEmail(String email) {
@@ -108,18 +111,24 @@ class DigitalUniversityUserProvisioningServiceTests {
 
         @Override
         public JsonNode getEmployees(Integer schoolId, int page, int size, String bearerToken) {
-            return json.objectNode();
+            employeesToken = bearerToken;
+            var response = json.objectNode();
+            response.put("totalElements", 1);
+            response.put("totalPages", 1);
+            var data = response.putArray("data");
+            data.add(employee(1001, 5001));
+            return response;
         }
 
         @Override
         public JsonNode getEmployee(Integer employeeId) {
-            return employee(employeeId, null);
+            return employee(employeeId, 5001);
         }
 
         @Override
         public JsonNode getEmployee(Integer employeeId, String bearerToken) {
             employeeToken = bearerToken;
-            return employee(employeeId, bearerToken);
+            return employee(employeeId, 5001);
         }
 
         @Override
@@ -167,10 +176,10 @@ class DigitalUniversityUserProvisioningServiceTests {
             return json.objectNode();
         }
 
-        private JsonNode employee(Integer employeeId, String bearerToken) {
+        private JsonNode employee(Integer employeeId, Integer userId) {
             var employee = json.objectNode();
             employee.put("employeeId", employeeId);
-            employee.put("userId", 5001);
+            employee.put("userId", userId);
             employee.put("email", "director@astanait.edu.kz");
             employee.put("firstName", "Aitu");
             employee.put("lastName", "Director");

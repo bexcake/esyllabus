@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.IntFunction;
 import kz.iqadam.esyllabus.integration.digital.persistence.DigitalUniversityCacheEntryEntity;
 import kz.iqadam.esyllabus.integration.digital.persistence.DigitalUniversityCacheEntryRepository;
 import kz.iqadam.esyllabus.integration.digital.persistence.DigitalUniversityProgramEntity;
@@ -38,6 +37,7 @@ public class DigitalUniversityDirectoryCacheService {
     private final CourseRepository courseRepository;
     private final DigitalUniversityUserProvisioningService userProvisioningService;
     private final ObjectMapper objectMapper;
+    private Instant refreshFailureCooldownUntil;
 
     public DigitalUniversityDirectoryCacheService(
             DigitalUniversityBridgeClient digitalUniversityBridgeClient,
@@ -75,7 +75,16 @@ public class DigitalUniversityDirectoryCacheService {
         if (marker.isPresent() && marker.get().getExpiresAt().isAfter(now)) {
             return;
         }
-        refreshReferenceData(bearerToken.trim(), now);
+        if (refreshFailureCooldownUntil != null && now.isBefore(refreshFailureCooldownUntil)) {
+            return;
+        }
+        try {
+            refreshReferenceData(bearerToken.trim(), now);
+            refreshFailureCooldownUntil = null;
+        } catch (RuntimeException exception) {
+            refreshFailureCooldownUntil = now.plus(failureCooldown());
+            throw exception;
+        }
     }
 
     @Transactional
@@ -93,15 +102,17 @@ public class DigitalUniversityDirectoryCacheService {
         cache(PROGRAMS_CACHE_KEY, programs, now, expiresAt);
 
         var employees = collectPaged(
-                page -> digitalUniversityBridgeClient.getEmployees(null, page, pageSize, bearerToken),
+                (page, size) -> digitalUniversityBridgeClient.getEmployees(null, page, size, bearerToken),
                 pageSize,
                 maxPages
         );
-        employees.forEach(employee -> userProvisioningService.upsertEmployee(employee, bearerToken, expiresAt, now));
+        employees.stream()
+                .filter(employee -> longValue(employee.path("employeeId")) != null || longValue(employee.path("id")) != null)
+                .forEach(employee -> userProvisioningService.upsertEmployee(employee, bearerToken, expiresAt, now));
         cache(EMPLOYEES_CACHE_KEY, employees, now, expiresAt);
 
         var teacherDisciplines = collectPaged(
-                page -> digitalUniversityBridgeClient.getTeacherDisciplines(null, null, null, null, page, pageSize, bearerToken),
+                (page, size) -> digitalUniversityBridgeClient.getTeacherDisciplines(null, null, null, null, page, size, bearerToken),
                 pageSize,
                 maxPages
         );
@@ -179,14 +190,35 @@ public class DigitalUniversityDirectoryCacheService {
         courseRepository.save(entity);
     }
 
-    private List<JsonNode> collectPaged(IntFunction<JsonNode> fetchPage, int pageSize, int maxPages) {
+    private List<JsonNode> collectPaged(PagedFetch fetchPage, int pageSize, int maxPages) {
         var result = new ArrayList<JsonNode>();
-        for (var page = 0; page < maxPages; page++) {
-            var response = fetchPage.apply(page);
+        var firstResponse = fetchPage.fetch(0, pageSize);
+        var firstItems = items(firstResponse);
+        result.addAll(firstItems);
+
+        var totalItems = totalItems(firstResponse);
+        if (totalItems != null && totalItems > result.size() && totalItems <= (long) pageSize * maxPages) {
+            var allResponse = fetchPage.fetch(0, Math.toIntExact(totalItems));
+            var allItems = items(allResponse);
+            if (allItems.size() > result.size()) {
+                return allItems;
+            }
+        }
+
+        var firstTotalPages = totalPages(firstResponse, pageSize);
+        if (firstTotalPages != null && firstTotalPages <= 1) {
+            return result;
+        }
+        if (firstTotalPages == null && firstItems.size() < pageSize) {
+            return result;
+        }
+
+        for (var page = 1; page < maxPages; page++) {
+            var response = fetchPage.fetch(page, pageSize);
             var pageItems = items(response);
             result.addAll(pageItems);
 
-            var totalPages = integerValue(response.path("totalPages"));
+            var totalPages = totalPages(response, pageSize);
             if (totalPages != null && page + 1 >= totalPages) {
                 break;
             }
@@ -195,6 +227,11 @@ public class DigitalUniversityDirectoryCacheService {
             }
         }
         return result;
+    }
+
+    @FunctionalInterface
+    private interface PagedFetch {
+        JsonNode fetch(int page, int size);
     }
 
     private List<JsonNode> items(JsonNode response) {
@@ -214,6 +251,30 @@ public class DigitalUniversityDirectoryCacheService {
         var result = new ArrayList<JsonNode>();
         array.forEach(result::add);
         return result;
+    }
+
+    private Long totalItems(JsonNode response) {
+        if (response == null || response.isMissingNode() || response.isNull()) {
+            return null;
+        }
+        return firstLong(
+                response.path("totalElements"),
+                response.path("totalItems"),
+                response.path("total"),
+                response.path("count")
+        );
+    }
+
+    private Integer totalPages(JsonNode response, int pageSize) {
+        var explicit = integerValue(response.path("totalPages"));
+        if (explicit != null) {
+            return explicit;
+        }
+        var totalItems = totalItems(response);
+        if (totalItems == null) {
+            return null;
+        }
+        return (int) Math.ceil(totalItems / (double) Math.max(1, pageSize));
     }
 
     private void cache(String key, List<JsonNode> items, Instant refreshedAt, Instant expiresAt) {
@@ -238,6 +299,11 @@ public class DigitalUniversityDirectoryCacheService {
     private Duration refreshInterval() {
         var value = properties.cache() == null ? null : properties.cache().refreshInterval();
         return value == null ? Duration.ofHours(12) : value;
+    }
+
+    private Duration failureCooldown() {
+        var value = properties.cache() == null ? null : properties.cache().failureCooldown();
+        return value == null ? Duration.ofMinutes(15) : value;
     }
 
     private int pageSize() {
@@ -266,6 +332,16 @@ public class DigitalUniversityDirectoryCacheService {
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private Long firstLong(JsonNode... nodes) {
+        for (var node : nodes) {
+            var value = longValue(node);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private Integer integerValue(JsonNode node) {

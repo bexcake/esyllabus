@@ -72,7 +72,7 @@ public class DigitalUniversityJwtService {
         return new DigitalUniversityJwtClaims(
                 principal,
                 displayName == null ? principal : displayName,
-                requiredEmployeeId(claims),
+                requiredUserId(claims),
                 expiresAt(claims),
                 roles,
                 Map.copyOf(claims)
@@ -151,12 +151,12 @@ public class DigitalUniversityJwtService {
         return null;
     }
 
-    private Long requiredEmployeeId(Map<String, Object> claims) {
-        var employeeId = epochSeconds(claims.get("sub"));
-        if (employeeId == null) {
-            throw new BadCredentialsException("JWT sub claim must contain Digital University employeeId");
+    private Long requiredUserId(Map<String, Object> claims) {
+        var userId = epochSeconds(claims.get("sub"));
+        if (userId == null) {
+            throw new BadCredentialsException("JWT sub claim must contain Digital University userId");
         }
-        return employeeId;
+        return userId;
     }
 
     private Instant expiresAt(Map<String, Object> claims) {
@@ -172,6 +172,9 @@ public class DigitalUniversityJwtService {
                 if (normalized != null) {
                     return normalized;
                 }
+            }
+            if (value instanceof Number number) {
+                return String.valueOf(number.longValue());
             }
         }
         return null;

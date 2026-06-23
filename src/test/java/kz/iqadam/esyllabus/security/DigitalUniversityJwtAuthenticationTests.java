@@ -62,7 +62,7 @@ class DigitalUniversityJwtAuthenticationTests {
                 .andExpect(jsonPath("$.email").value("teacher@astanait.edu.kz"))
                 .andExpect(jsonPath("$.displayName").value("AITU Teacher"))
                 .andExpect(jsonPath("$.roles[0]").value("TEACHER"))
-                .andExpect(jsonPath("$.employeeId").value(1001));
+                .andExpect(jsonPath("$.userId").value(1001));
     }
 
     @Test
@@ -80,11 +80,11 @@ class DigitalUniversityJwtAuthenticationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("director@astanait.edu.kz"))
                 .andExpect(jsonPath("$.roles[0]").value("DIRECTOR"))
-                .andExpect(jsonPath("$.employeeId").value(1002));
+                .andExpect(jsonPath("$.userId").value(1002));
     }
 
     @Test
-    void rejectsTokenWithoutEmployeeIdSubject() throws Exception {
+    void rejectsTokenWithoutUserIdSubject() throws Exception {
         var token = token(Map.of(
                 "email", "teacher@astanait.edu.kz",
                 "roles", List.of("teacher"),

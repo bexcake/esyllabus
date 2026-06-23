@@ -27,6 +27,7 @@ public record DigitalUniversityProperties(
             boolean enabled,
             Duration refreshInterval,
             String refreshCron,
+            Duration failureCooldown,
             int pageSize,
             int maxPages
     ) {

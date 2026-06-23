@@ -87,6 +87,7 @@ class HttpDigitalUniversityBridgeClientTests {
                         true,
                         Duration.ofHours(12),
                         "0 0 */12 * * *",
+                        Duration.ofMinutes(15),
                         100,
                         50
                 ),

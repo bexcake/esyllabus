@@ -7,7 +7,7 @@ import java.util.Set;
 public record DigitalUniversityJwtClaims(
         String principal,
         String displayName,
-        Long employeeId,
+        Long userId,
         Instant expiresAt,
         Set<String> roles,
         Map<String, Object> claims

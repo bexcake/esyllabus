@@ -1,7 +1,7 @@
 package kz.iqadam.esyllabus.integration.digital;
 
 import java.net.http.HttpClient;
-import java.util.Set;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kz.iqadam.esyllabus.security.DigitalUniversityBearerTokenResolver;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -10,13 +10,14 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-public class DigitalUniversityRoleClientConfiguration {
+public class DigitalUniversityBridgeClientConfiguration {
 
     @Bean
     @ConditionalOnProperty(prefix = "digital-university", name = "enabled", havingValue = "true")
     DigitalUniversityBridgeClient httpDigitalUniversityBridgeClient(
             DigitalUniversityProperties properties,
-            DigitalUniversityBearerTokenResolver tokenResolver
+            DigitalUniversityBearerTokenResolver tokenResolver,
+            ObjectMapper objectMapper
     ) {
         var httpClient = HttpClient.newBuilder()
                 .connectTimeout(properties.connectTimeout())
@@ -30,7 +31,7 @@ public class DigitalUniversityRoleClientConfiguration {
                 .requestFactory(requestFactory)
                 .build();
 
-        return new HttpDigitalUniversityBridgeClient(restClient, properties, tokenResolver);
+        return new HttpDigitalUniversityBridgeClient(restClient, properties, tokenResolver, objectMapper);
     }
 
     @Bean
@@ -39,15 +40,4 @@ public class DigitalUniversityRoleClientConfiguration {
         return new DisabledDigitalUniversityBridgeClient();
     }
 
-    @Bean
-    @ConditionalOnProperty(prefix = "digital-university", name = "enabled", havingValue = "true")
-    DigitalUniversityRoleClient httpDigitalUniversityRoleClient() {
-        return email -> Set.of();
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "digital-university", name = "enabled", havingValue = "false", matchIfMissing = true)
-    DigitalUniversityRoleClient disabledDigitalUniversityRoleClient() {
-        return email -> Set.of();
-    }
 }

@@ -6,13 +6,23 @@ public interface DigitalUniversityBridgeClient {
 
     JsonNode getStudentByEmail(String email);
 
+    JsonNode getStudents(Integer course, Integer schoolId, Integer programId, int page, int size);
+
     JsonNode getEmployees();
 
-    JsonNode getEmployee(String employeeId);
+    JsonNode getEmployees(Integer schoolId, int page, int size);
+
+    JsonNode getEmployee(Integer employeeId);
 
     JsonNode getSchools();
 
+    JsonNode getSchools(Integer schoolId);
+
     JsonNode getEducationPrograms();
 
+    JsonNode getEducationPrograms(Integer programId);
+
     JsonNode getTeacherDisciplines();
+
+    JsonNode getTeacherDisciplines(Integer schoolId, Integer teacherId, Integer academicYear, Integer term, int page, int size);
 }

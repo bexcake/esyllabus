@@ -14,12 +14,22 @@ final class DisabledDigitalUniversityBridgeClient implements DigitalUniversityBr
     }
 
     @Override
+    public JsonNode getStudents(Integer course, Integer schoolId, Integer programId, int page, int size) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
     public JsonNode getEmployees() {
         return EMPTY_ARRAY;
     }
 
     @Override
-    public JsonNode getEmployee(String employeeId) {
+    public JsonNode getEmployees(Integer schoolId, int page, int size) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
+    public JsonNode getEmployee(Integer employeeId) {
         return EMPTY_OBJECT;
     }
 
@@ -29,12 +39,27 @@ final class DisabledDigitalUniversityBridgeClient implements DigitalUniversityBr
     }
 
     @Override
+    public JsonNode getSchools(Integer schoolId) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
     public JsonNode getEducationPrograms() {
         return EMPTY_ARRAY;
     }
 
     @Override
+    public JsonNode getEducationPrograms(Integer programId) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
     public JsonNode getTeacherDisciplines() {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
+    public JsonNode getTeacherDisciplines(Integer schoolId, Integer teacherId, Integer academicYear, Integer term, int page, int size) {
         return EMPTY_ARRAY;
     }
 }

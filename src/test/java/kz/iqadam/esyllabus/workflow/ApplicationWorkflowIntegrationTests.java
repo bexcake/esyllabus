@@ -4,19 +4,25 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
@@ -28,8 +34,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "digital-university.jwt.enabled=true",
+        "digital-university.jwt.secret=dGVzdC1kdS1zZWNyZXQ="
+})
 class ApplicationWorkflowIntegrationTests {
+
+    private static final String SECRET = "test-du-secret";
 
     private MockMvc mockMvc;
 
@@ -49,12 +60,12 @@ class ApplicationWorkflowIntegrationTests {
     @Test
     void exposesDirectoryCatalogs() throws Exception {
         mockMvc.perform(get("/api/directory/schools")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[5].id").exists());
 
         mockMvc.perform(get("/api/directory/staff")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].schoolName").exists())
                 .andExpect(jsonPath("$[0].cabinet").exists())
@@ -62,26 +73,26 @@ class ApplicationWorkflowIntegrationTests {
 
         mockMvc.perform(get("/api/directory/staff")
                         .param("schoolId", "school-computing")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[2].username").exists())
                 .andExpect(jsonPath("$[0].schoolId").value("school-computing"));
 
         mockMvc.perform(get("/api/directory/staff/teacher")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("teacher"))
                 .andExpect(jsonPath("$.schoolId").value("school-public-policy"));
 
         mockMvc.perform(get("/api/directory/staff/picker")
                         .param("schoolId", "school-public-policy")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].username").exists())
                 .andExpect(jsonPath("$[0].schoolId").value("school-public-policy"));
 
         mockMvc.perform(get("/api/directory/programs")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").exists())
                 .andExpect(jsonPath("$[8].id").exists())
@@ -89,37 +100,37 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(jsonPath("$[0].degreeLevel").exists());
 
         mockMvc.perform(get("/api/directory/academic-years")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").exists());
 
         mockMvc.perform(get("/api/directory/trimesters")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").exists());
 
         mockMvc.perform(get("/api/directory/languages")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").exists());
 
         mockMvc.perform(get("/api/directory/degree-levels")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").value("Bachelor"));
 
         mockMvc.perform(get("/api/directory/course-types")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").value("Compulsory"));
 
         mockMvc.perform(get("/api/directory/assessment-stages")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").value("Continuous assessment"));
 
         var syllabusResponse = mockMvc.perform(post("/api/syllabi")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("courseId", "syllabus-public-policy-2026"))))
                 .andExpect(status().isOk())
@@ -131,13 +142,13 @@ class ApplicationWorkflowIntegrationTests {
 
         mockMvc.perform(get("/api/directory/reviewers")
                         .param("syllabusId", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].username").exists())
                 .andExpect(jsonPath("$[?(@.username == 'director')]").isEmpty());
 
         mockMvc.perform(get("/api/syllabi/{syllabusId}/metadata-options", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.allowedInstructors[0].username").exists())
                 .andExpect(jsonPath("$.allowedReviewers[0].username").exists())
@@ -153,7 +164,7 @@ class ApplicationWorkflowIntegrationTests {
     @Test
     void exposesDiverseDirectoryFixturesForFrontendCases() throws Exception {
         JsonNode schools = readJson(get("/api/directory/schools")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
+                .with(duUser("teacher", "Aigerim Sadykova", "teacher")));
         assertThat(schools.size()).isGreaterThanOrEqualTo(6);
         assertThat(collectTexts(schools, "id")).contains(
                 "school-public-policy",
@@ -169,7 +180,7 @@ class ApplicationWorkflowIntegrationTests {
         }
 
         JsonNode staff = readJson(get("/api/directory/staff")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
+                .with(duUser("teacher", "Aigerim Sadykova", "teacher")));
         assertThat(staff.size()).isGreaterThanOrEqualTo(30);
         assertThat(collectTexts(staff, "schoolId")).hasSizeGreaterThanOrEqualTo(6);
         assertThat(countByFieldValue(staff, "role", "SCHOOL_DIRECTOR")).isGreaterThanOrEqualTo(6);
@@ -177,7 +188,7 @@ class ApplicationWorkflowIntegrationTests {
 
         JsonNode healthStaff = readJson(get("/api/directory/staff")
                 .param("schoolId", "school-health")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
+                .with(duUser("teacher", "Aigerim Sadykova", "teacher")));
         assertThat(healthStaff.size()).isGreaterThanOrEqualTo(5);
         assertThat(collectTexts(healthStaff, "schoolId")).containsOnly("school-health");
         assertThat(countByFieldValue(healthStaff, "role", "SCHOOL_DIRECTOR")).isEqualTo(1);
@@ -186,12 +197,12 @@ class ApplicationWorkflowIntegrationTests {
                 .param("schoolId", "school-computing")
                 .param("role", "TEACHER")
                 .param("search", "cyber")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
+                .with(duUser("teacher", "Aigerim Sadykova", "teacher")));
         assertThat(computingPicker.size()).isEqualTo(1);
         assertThat(computingPicker.get(0).path("username").asText()).isEqualTo("teacher-cyber");
 
         JsonNode programs = readJson(get("/api/directory/programs")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
+                .with(duUser("teacher", "Aigerim Sadykova", "teacher")));
         assertThat(programs.size()).isGreaterThanOrEqualTo(18);
         assertThat(collectTexts(programs, "schoolId")).hasSizeGreaterThanOrEqualTo(6);
         assertThat(collectTexts(programs, "degreeLevel")).contains("Bachelor", "Master");
@@ -200,7 +211,7 @@ class ApplicationWorkflowIntegrationTests {
         JsonNode healthBachelorPrograms = readJson(get("/api/directory/programs")
                 .param("schoolId", "school-health")
                 .param("degreeLevel", "Bachelor")
-                .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")));
+                .with(duUser("teacher", "Aigerim Sadykova", "teacher")));
         assertThat(healthBachelorPrograms.size()).isGreaterThanOrEqualTo(2);
         assertThat(collectTexts(healthBachelorPrograms, "schoolId")).containsOnly("school-health");
         assertThat(collectTexts(healthBachelorPrograms, "degreeLevel")).containsOnly("Bachelor");
@@ -227,7 +238,7 @@ class ApplicationWorkflowIntegrationTests {
         );
 
         var createResponse = mockMvc.perform(post("/api/library/requests")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createPayload)))
                 .andExpect(status().isOk())
@@ -240,27 +251,27 @@ class ApplicationWorkflowIntegrationTests {
         assertThat(requestId).isNotBlank();
 
         mockMvc.perform(get("/api/library/requests")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("librarian", "librarian123")))
+                        .with(duUser("librarian", "Library Specialist", "librarian")))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
 
         mockMvc.perform(post("/api/library/requests/{requestId}/submit", requestId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Pending Director Approval"));
 
         mockMvc.perform(post("/api/library/requests/{requestId}/director-approve", requestId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("director", "director123")))
+                        .with(duUser("director", "Public Policy Director", "director")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Approved by Director"));
 
         mockMvc.perform(get("/api/library/requests")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("librarian", "librarian123")))
+                        .with(duUser("librarian", "Library Specialist", "librarian")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(requestId));
 
         mockMvc.perform(post("/api/library/requests/{requestId}/library-feedback", requestId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("librarian", "librarian123"))
+                        .with(duUser("librarian", "Library Specialist", "librarian"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "feedback", "Planned for procurement in the summer batch",
@@ -271,7 +282,7 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.expectedPurchaseMonth").value("2026-08"));
 
         var exportResponse = mockMvc.perform(get("/api/library/requests/{requestId}/export-form", requestId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("librarian", "librarian123")))
+                        .with(duUser("librarian", "Library Specialist", "librarian")))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .andReturn()
@@ -283,7 +294,7 @@ class ApplicationWorkflowIntegrationTests {
     @Test
     void publishesSyllabusAfterColleagueAndDirectorApprovalAndCreatesLibraryRequest() throws Exception {
         var syllabusResponse = mockMvc.perform(post("/api/syllabi")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("courseId", "syllabus-public-policy-2026"))))
                 .andExpect(status().isOk())
@@ -296,28 +307,28 @@ class ApplicationWorkflowIntegrationTests {
         assertThat(syllabusId).isNotBlank();
 
         mockMvc.perform(put("/api/syllabi/{syllabusId}/director", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("directorUsername", "director"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.directorUsername").value("director"));
 
         mockMvc.perform(put("/api/syllabi/{syllabusId}/director", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("directorUsername", "director-business"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.directorUsername").value("director-business"));
 
         mockMvc.perform(put("/api/syllabi/{syllabusId}/director", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("directorUsername", "director"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.directorUsername").value("director"));
 
         mockMvc.perform(put("/api/syllabi/{syllabusId}/reviewers", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("reviewerUsernames", List.of("teacher-colleague", "teacher-business")))))
                 .andExpect(status().isOk())
@@ -326,7 +337,7 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(jsonPath("$.colleagueApprovals[?(@.username == 'teacher-business' && @.approved == false)]").isNotEmpty());
 
         mockMvc.perform(put("/api/syllabi/{syllabusId}/reviewers", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("reviewerUsernames", List.of("director")))))
                 .andExpect(status().isBadRequest())
@@ -342,44 +353,44 @@ class ApplicationWorkflowIntegrationTests {
         );
 
         mockMvc.perform(put("/api/syllabi/{syllabusId}", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(completedContent)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.progress").value(100));
 
         mockMvc.perform(post("/api/syllabi/{syllabusId}/submit-review", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Pending Colleague Confirmation"));
 
         mockMvc.perform(get("/api/syllabi/review-queue")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("director", "director123")))
+                        .with(duUser("director", "Public Policy Director", "director")))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
 
         mockMvc.perform(post("/api/syllabi/{syllabusId}/colleague-approve", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher-colleague", "teacher123")))
+                        .with(duUser("teacher-colleague", "Colleague Teacher", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Pending Colleague Confirmation"))
                 .andExpect(jsonPath("$.colleagueApprovals[?(@.username == 'teacher-colleague' && @.approved == true)]").isNotEmpty())
                 .andExpect(jsonPath("$.colleagueApprovals[?(@.username == 'teacher-business' && @.approved == false)]").isNotEmpty());
 
         mockMvc.perform(post("/api/syllabi/{syllabusId}/colleague-approve", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher-business", "teacher123")))
+                        .with(duUser("teacher-business", "Business Teacher", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Pending Director Review"))
                 .andExpect(jsonPath("$.colleagueApprovals[?(@.username == 'teacher-colleague' && @.approved == true)]").isNotEmpty())
                 .andExpect(jsonPath("$.colleagueApprovals[?(@.username == 'teacher-business' && @.approved == true)]").isNotEmpty());
 
         mockMvc.perform(get("/api/syllabi/review-queue")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("director", "director123")))
+                        .with(duUser("director", "Public Policy Director", "director")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(syllabusId))
                 .andExpect(jsonPath("$[0].colleagueApprovals[0].approved").value(true));
 
         var approvedResponse = mockMvc.perform(post("/api/syllabi/{syllabusId}/approve", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("director", "director123")))
+                        .with(duUser("director", "Public Policy Director", "director")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("Published"))
                 .andExpect(jsonPath("$.linkedLibraryRequestId").isNotEmpty())
@@ -391,13 +402,13 @@ class ApplicationWorkflowIntegrationTests {
         assertThat(linkedLibraryRequestId).isNotBlank();
 
         mockMvc.perform(get("/api/syllabi/{syllabusId}", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(syllabusId))
                 .andExpect(jsonPath("$.status").value("Published"));
 
         mockMvc.perform(get("/api/library/requests")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("librarian", "librarian123")))
+                        .with(duUser("librarian", "Library Specialist", "librarian")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(linkedLibraryRequestId))
                 .andExpect(jsonPath("$[0].syllabusId").value(syllabusId));
@@ -406,38 +417,38 @@ class ApplicationWorkflowIntegrationTests {
     @Test
     void exposesDisciplineTagsAndPdfExport() throws Exception {
         mockMvc.perform(get("/api/courses")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].disciplineTags").isArray())
                 .andExpect(jsonPath("$[0].schoolId").exists());
 
         mockMvc.perform(get("/api/library/disciplines")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].disciplineTags").isArray())
                 .andExpect(jsonPath("$[0].courseId").exists());
 
         mockMvc.perform(get("/api/library/books")
                         .param("query", "macro")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").exists())
                 .andExpect(jsonPath("$[0].discipline").exists());
 
         mockMvc.perform(get("/api/library/books")
                         .param("query", "макроэкономика")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").value("Макроэкономика"));
 
         mockMvc.perform(get("/api/library/books")
                         .param("query", "мемлекеттік")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").value("Мемлекеттік саясатты талдау"));
 
         mockMvc.perform(get("/api/library/book-tags")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").exists())
                 .andExpect(jsonPath("$[0].label").exists())
@@ -445,12 +456,12 @@ class ApplicationWorkflowIntegrationTests {
 
         mockMvc.perform(get("/api/library/book-tags")
                         .param("search", "policy")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].value").value("policy analysis"));
 
         var syllabusResponse = mockMvc.perform(post("/api/syllabi")
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123"))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
@@ -460,7 +471,7 @@ class ApplicationWorkflowIntegrationTests {
 
         String syllabusId = objectMapper.readTree(syllabusResponse).path("id").asText();
         var pdfResponse = mockMvc.perform(get("/api/syllabi/{syllabusId}/export-pdf", syllabusId)
-                        .with(SecurityMockMvcRequestPostProcessors.httpBasic("teacher", "teacher123")))
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_PDF))
                 .andReturn()
@@ -602,4 +613,39 @@ class ApplicationWorkflowIntegrationTests {
         }
         return count;
     }
+
+    private RequestPostProcessor duUser(String username, String displayName, String role) {
+        return request -> {
+            var token = token(Map.of(
+                    "email", username,
+                    "name", displayName,
+                    "roles", List.of(role),
+                    "exp", Instant.now().plusSeconds(300).getEpochSecond()
+            ));
+            request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+            return request;
+        };
+    }
+
+    private String token(Map<String, Object> claims) {
+        try {
+            var header = Map.of("alg", "HS256", "typ", "JWT");
+            var signingInput = base64Url(objectMapper.writeValueAsBytes(header))
+                    + "." + base64Url(objectMapper.writeValueAsBytes(claims));
+            return signingInput + "." + signature(signingInput);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to build test Digital University JWT", ex);
+        }
+    }
+
+    private String signature(String signingInput) throws Exception {
+        var mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        return base64Url(mac.doFinal(signingInput.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private String base64Url(byte[] value) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
+    }
 }
+

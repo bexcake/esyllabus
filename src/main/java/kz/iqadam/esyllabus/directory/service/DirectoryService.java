@@ -256,6 +256,7 @@ public class DirectoryService {
 
     public StaffProfileEntity getRequiredStaffProfile(String username) {
         return staffProfileRepository.findByUsername(username)
+                .or(() -> staffProfileRepository.findByEmailIgnoreCase(username))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Current user is not mapped to staff directory"));
     }
 

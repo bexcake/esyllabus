@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -74,6 +75,17 @@ class DigitalUniversityJwtAuthenticationTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token + "broken"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Invalid Digital University bearer token"));
+    }
+
+    @Test
+    void doesNotExposeHttpBasicAuthentication() throws Exception {
+        var credentials = Base64.getEncoder()
+                .encodeToString("legacy-user:legacy-password".getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Basic " + credentials))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
     }
 
     private String token(Map<String, Object> claims) throws Exception {

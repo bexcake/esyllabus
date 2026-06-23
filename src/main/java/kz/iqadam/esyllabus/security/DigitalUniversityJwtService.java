@@ -44,7 +44,7 @@ public class DigitalUniversityJwtService {
         }
         var secret = normalized(properties.jwt().secret());
         if (secret == null) {
-            throw new IllegalStateException("digital-university.jwt.secret must be configured when JWT auth is enabled");
+            throw new BadCredentialsException("Digital University JWT secret is not configured");
         }
 
         var parts = token.split("\\.");

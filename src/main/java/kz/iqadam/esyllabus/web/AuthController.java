@@ -52,7 +52,7 @@ public class AuthController {
     public Map<String, String> home() {
         return Map.of(
                 "message", "ESyllabus service is running",
-                "authentication", "HTTP Basic"
+                "authentication", "Digital University Bearer JWT"
         );
     }
 }

@@ -27,54 +27,9 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/esyllabus
       DB_USER: esyllabus
       DB_PASSWORD: esyllabus
-      APP_USER_1_USERNAME: teacher
-      APP_USER_1_PASSWORD: teacher123
-      APP_USER_1_ROLES: teacher
-      APP_USER_2_USERNAME: director
-      APP_USER_2_PASSWORD: director123
-      APP_USER_2_ROLES: director
-      APP_USER_3_USERNAME: librarian
-      APP_USER_3_PASSWORD: librarian123
-      APP_USER_3_ROLES: librarian
-      APP_USER_4_USERNAME: teacher-colleague
-      APP_USER_4_PASSWORD: teacher123
-      APP_USER_4_ROLES: teacher
-      APP_USER_5_USERNAME: teacher-digital
-      APP_USER_5_PASSWORD: teacher123
-      APP_USER_5_ROLES: teacher
-      APP_USER_6_USERNAME: director-computing
-      APP_USER_6_PASSWORD: director123
-      APP_USER_6_ROLES: director
-      APP_USER_7_USERNAME: teacher-business
-      APP_USER_7_PASSWORD: teacher123
-      APP_USER_7_ROLES: teacher
-      APP_USER_8_USERNAME: director-business
-      APP_USER_8_PASSWORD: director123
-      APP_USER_8_ROLES: director
-      APP_USER_9_USERNAME: teacher-engineering
-      APP_USER_9_PASSWORD: teacher123
-      APP_USER_9_ROLES: teacher
-      APP_USER_10_USERNAME: director-engineering
-      APP_USER_10_PASSWORD: director123
-      APP_USER_10_ROLES: director
-      APP_USER_11_USERNAME: teacher-health
-      APP_USER_11_PASSWORD: teacher123
-      APP_USER_11_ROLES: teacher
-      APP_USER_12_USERNAME: director-health
-      APP_USER_12_PASSWORD: director123
-      APP_USER_12_ROLES: director
-      APP_USER_13_USERNAME: teacher-education
-      APP_USER_13_PASSWORD: teacher123
-      APP_USER_13_ROLES: teacher
-      APP_USER_14_USERNAME: director-education
-      APP_USER_14_PASSWORD: director123
-      APP_USER_14_ROLES: director
-      APP_USER_15_USERNAME: librarian-sciences
-      APP_USER_15_PASSWORD: librarian123
-      APP_USER_15_ROLES: librarian
-      DU_ENABLED: ${DU_ENABLED:-false}
+      DU_ENABLED: ${DU_ENABLED:-true}
       DU_BASE_URL: ${DU_BASE_URL:-https://bridge-du.astanait.edu.kz}
-      DU_JWT_ENABLED: ${DU_JWT_ENABLED:-false}
+      DU_JWT_ENABLED: ${DU_JWT_ENABLED:-true}
       DU_JWT_SECRET: ${DU_JWT_SECRET:-}
     ports:
       - "8080:8080"

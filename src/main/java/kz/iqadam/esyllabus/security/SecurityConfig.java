@@ -1,18 +1,13 @@
 package kz.iqadam.esyllabus.security;
 
-import kz.iqadam.esyllabus.config.ApplicationSecurityProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpStatus;
 
 @Configuration
 public class SecurityConfig {
@@ -20,13 +15,8 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            ApplicationSecurityProperties properties,
             DigitalUniversityBearerAuthenticationFilter digitalUniversityBearerAuthenticationFilter
     ) throws Exception {
-        if (properties.users() == null || properties.users().isEmpty()) {
-            throw new IllegalStateException("At least one app.security user must be configured");
-        }
-
         http
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
@@ -39,34 +29,14 @@ public class SecurityConfig {
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
-                .httpBasic(Customizer.withDefaults())
-                .addFilterBefore(digitalUniversityBearerAuthenticationFilter, BasicAuthenticationFilter.class)
-                .logout(logout -> logout.logoutSuccessUrl("/"))
+                .httpBasic(httpBasic -> httpBasic.disable())
+                .formLogin(formLogin -> formLogin.disable())
+                .addFilterBefore(digitalUniversityBearerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(csrf -> csrf.disable());
 
         return http.build();
-    }
-
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-    }
-
-    @Bean
-    UserDetailsService userDetailsService(
-            ApplicationSecurityProperties properties,
-            PasswordEncoder passwordEncoder
-    ) {
-        var users = properties.users().stream()
-                .map(user -> User.withUsername(user.username())
-                        .password(passwordEncoder.encode(user.password()))
-                        .authorities(user.roles().stream()
-                                .map(RoleNormalizer::toAuthority)
-                                .toArray(String[]::new))
-                        .build())
-                .toList();
-
-        return new InMemoryUserDetailsManager(users);
     }
 }

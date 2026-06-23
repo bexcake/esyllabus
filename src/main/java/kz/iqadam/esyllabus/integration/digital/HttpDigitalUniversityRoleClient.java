@@ -21,15 +21,6 @@ final class HttpDigitalUniversityRoleClient implements DigitalUniversityRoleClie
 
     @Override
     public Set<String> getRolesByEmail(String email) {
-        var response = restClient.get()
-                .uri(properties.rolesPath(), email)
-                .retrieve()
-                .body(STRING_LIST);
-
-        if (response == null) {
-            return Set.of();
-        }
-
-        return new LinkedHashSet<>(response);
+        return Set.of();
     }
 }

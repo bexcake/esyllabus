@@ -4,6 +4,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import kz.iqadam.esyllabus.security.AuthenticatedUser;
+import kz.iqadam.esyllabus.security.DigitalUniversityJwtClaims;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -29,7 +30,11 @@ public class AuthController {
                 .map(authority -> authority.substring("ROLE_".length()))
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
-        return new AuthenticatedUser(authentication.getName(), authentication.getName(), resolvedRoles);
+        var displayName = authentication.getDetails() instanceof DigitalUniversityJwtClaims claims
+                ? claims.displayName()
+                : authentication.getName();
+
+        return new AuthenticatedUser(authentication.getName(), displayName, resolvedRoles);
     }
 
     @GetMapping("/auth/access-denied")

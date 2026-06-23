@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     private static final String BASIC_AUTH_SCHEME = "basicAuth";
+    private static final String DIGITAL_UNIVERSITY_BEARER_SCHEME = "digitalUniversityBearer";
 
     @Bean
     OpenAPI esyllabusOpenApi() {
@@ -23,7 +24,12 @@ public class OpenApiConfig {
                 .components(new Components()
                         .addSecuritySchemes(BASIC_AUTH_SCHEME, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
-                                .scheme("basic")))
-                .addSecurityItem(new SecurityRequirement().addList(BASIC_AUTH_SCHEME));
+                                .scheme("basic"))
+                        .addSecuritySchemes(DIGITAL_UNIVERSITY_BEARER_SCHEME, new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")))
+                .addSecurityItem(new SecurityRequirement().addList(BASIC_AUTH_SCHEME))
+                .addSecurityItem(new SecurityRequirement().addList(DIGITAL_UNIVERSITY_BEARER_SCHEME));
     }
 }

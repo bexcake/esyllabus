@@ -72,6 +72,10 @@ services:
       APP_USER_15_USERNAME: librarian-sciences
       APP_USER_15_PASSWORD: librarian123
       APP_USER_15_ROLES: librarian
+      DU_ENABLED: ${DU_ENABLED:-false}
+      DU_BASE_URL: ${DU_BASE_URL:-https://bridge-du.astanait.edu.kz}
+      DU_JWT_ENABLED: ${DU_JWT_ENABLED:-false}
+      DU_JWT_SECRET: ${DU_JWT_SECRET:-}
     ports:
       - "8080:8080"
     restart: unless-stopped

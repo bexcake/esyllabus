@@ -11,6 +11,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -19,7 +20,8 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            ApplicationSecurityProperties properties
+            ApplicationSecurityProperties properties,
+            DigitalUniversityBearerAuthenticationFilter digitalUniversityBearerAuthenticationFilter
     ) throws Exception {
         if (properties.users() == null || properties.users().isEmpty()) {
             throw new IllegalStateException("At least one app.security user must be configured");
@@ -38,6 +40,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .httpBasic(Customizer.withDefaults())
+                .addFilterBefore(digitalUniversityBearerAuthenticationFilter, BasicAuthenticationFilter.class)
                 .logout(logout -> logout.logoutSuccessUrl("/"))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(csrf -> csrf.disable());

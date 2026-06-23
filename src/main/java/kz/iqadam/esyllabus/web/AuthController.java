@@ -4,7 +4,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import kz.iqadam.esyllabus.security.AuthenticatedUser;
-import kz.iqadam.esyllabus.security.DigitalUniversityJwtClaims;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -24,17 +23,35 @@ public class AuthController {
 
     @GetMapping("/auth/me")
     public AuthenticatedUser me(Authentication authentication) {
+        if (authentication.getDetails() instanceof AuthenticatedUser user) {
+            return user;
+        }
+
         var resolvedRoles = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .filter(authority -> authority.startsWith("ROLE_"))
                 .map(authority -> authority.substring("ROLE_".length()))
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
-        var displayName = authentication.getDetails() instanceof DigitalUniversityJwtClaims claims
-                ? claims.displayName()
-                : authentication.getName();
+        return new AuthenticatedUser(
+                authentication.getName(),
+                authentication.getName(),
+                resolvedRoles,
+                null,
+                null,
+                authentication.getName(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
 
-        return new AuthenticatedUser(authentication.getName(), displayName, resolvedRoles);
+    @GetMapping("/me")
+    public AuthenticatedUser currentUser(Authentication authentication) {
+        return me(authentication);
     }
 
     @GetMapping("/auth/access-denied")

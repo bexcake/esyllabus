@@ -73,6 +73,7 @@ class HttpDigitalUniversityBridgeClientTests {
         return new DigitalUniversityProperties(
                 true,
                 URI.create(BASE_URL),
+                "",
                 "/api/v1/students/{studentEmail}",
                 "/api/v1/user/students",
                 "/api/v1/user/employees",
@@ -82,6 +83,13 @@ class HttpDigitalUniversityBridgeClientTests {
                 "/api/v1/teacher_disciplines",
                 Duration.ofSeconds(5),
                 Duration.ofSeconds(10),
+                new DigitalUniversityProperties.Cache(
+                        true,
+                        Duration.ofHours(12),
+                        "0 0 */12 * * *",
+                        100,
+                        50
+                ),
                 new DigitalUniversityProperties.Jwt(
                         true,
                         "test-secret",

@@ -14,7 +14,17 @@ final class DisabledDigitalUniversityBridgeClient implements DigitalUniversityBr
     }
 
     @Override
+    public JsonNode getStudentByEmail(String email, String bearerToken) {
+        return EMPTY_OBJECT;
+    }
+
+    @Override
     public JsonNode getStudents(Integer course, Integer schoolId, Integer programId, int page, int size) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
+    public JsonNode getStudents(Integer course, Integer schoolId, Integer programId, int page, int size, String bearerToken) {
         return EMPTY_ARRAY;
     }
 
@@ -29,7 +39,17 @@ final class DisabledDigitalUniversityBridgeClient implements DigitalUniversityBr
     }
 
     @Override
+    public JsonNode getEmployees(Integer schoolId, int page, int size, String bearerToken) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
     public JsonNode getEmployee(Integer employeeId) {
+        return EMPTY_OBJECT;
+    }
+
+    @Override
+    public JsonNode getEmployee(Integer employeeId, String bearerToken) {
         return EMPTY_OBJECT;
     }
 
@@ -44,6 +64,11 @@ final class DisabledDigitalUniversityBridgeClient implements DigitalUniversityBr
     }
 
     @Override
+    public JsonNode getSchools(Integer schoolId, String bearerToken) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
     public JsonNode getEducationPrograms() {
         return EMPTY_ARRAY;
     }
@@ -54,12 +79,22 @@ final class DisabledDigitalUniversityBridgeClient implements DigitalUniversityBr
     }
 
     @Override
+    public JsonNode getEducationPrograms(Integer programId, String bearerToken) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
     public JsonNode getTeacherDisciplines() {
         return EMPTY_ARRAY;
     }
 
     @Override
     public JsonNode getTeacherDisciplines(Integer schoolId, Integer teacherId, Integer academicYear, Integer term, int page, int size) {
+        return EMPTY_ARRAY;
+    }
+
+    @Override
+    public JsonNode getTeacherDisciplines(Integer schoolId, Integer teacherId, Integer academicYear, Integer term, int page, int size, String bearerToken) {
         return EMPTY_ARRAY;
     }
 }

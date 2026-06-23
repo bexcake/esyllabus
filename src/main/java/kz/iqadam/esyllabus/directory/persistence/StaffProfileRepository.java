@@ -10,5 +10,9 @@ public interface StaffProfileRepository extends JpaRepository<StaffProfileEntity
 
     Optional<StaffProfileEntity> findByEmailIgnoreCase(String email);
 
+    Optional<StaffProfileEntity> findByDuEmployeeId(Long duEmployeeId);
+
+    Optional<StaffProfileEntity> findByDuUserId(Long duUserId);
+
     List<StaffProfileEntity> findBySchoolIdOrderByFullNameAsc(String schoolId);
 }

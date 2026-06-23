@@ -5,7 +5,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import kz.iqadam.esyllabus.directory.model.StaffRole;
 
 @Entity
@@ -40,6 +42,22 @@ public class StaffProfileEntity {
     @Enumerated(EnumType.STRING)
     @Column(length = 32, nullable = false)
     private StaffRole role;
+
+    @Column(unique = true)
+    private Long duEmployeeId;
+
+    @Column(unique = true)
+    private Long duUserId;
+
+    @Lob
+    @Column
+    private String duRawJson;
+
+    @Column
+    private Instant duSyncedAt;
+
+    @Column
+    private Instant duCacheExpiresAt;
 
     public String getId() {
         return id;
@@ -111,5 +129,45 @@ public class StaffProfileEntity {
 
     public void setRole(StaffRole role) {
         this.role = role;
+    }
+
+    public Long getDuEmployeeId() {
+        return duEmployeeId;
+    }
+
+    public void setDuEmployeeId(Long duEmployeeId) {
+        this.duEmployeeId = duEmployeeId;
+    }
+
+    public Long getDuUserId() {
+        return duUserId;
+    }
+
+    public void setDuUserId(Long duUserId) {
+        this.duUserId = duUserId;
+    }
+
+    public String getDuRawJson() {
+        return duRawJson;
+    }
+
+    public void setDuRawJson(String duRawJson) {
+        this.duRawJson = duRawJson;
+    }
+
+    public Instant getDuSyncedAt() {
+        return duSyncedAt;
+    }
+
+    public void setDuSyncedAt(Instant duSyncedAt) {
+        this.duSyncedAt = duSyncedAt;
+    }
+
+    public Instant getDuCacheExpiresAt() {
+        return duCacheExpiresAt;
+    }
+
+    public void setDuCacheExpiresAt(Instant duCacheExpiresAt) {
+        this.duCacheExpiresAt = duCacheExpiresAt;
     }
 }

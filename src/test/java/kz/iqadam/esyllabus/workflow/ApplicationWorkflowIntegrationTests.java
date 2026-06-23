@@ -617,6 +617,7 @@ class ApplicationWorkflowIntegrationTests {
     private RequestPostProcessor duUser(String username, String displayName, String role) {
         return request -> {
             var token = token(Map.of(
+                    "sub", Math.abs(username.hashCode()),
                     "email", username,
                     "name", displayName,
                     "roles", List.of(role),

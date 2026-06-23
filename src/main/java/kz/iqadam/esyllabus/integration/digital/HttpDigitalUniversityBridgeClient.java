@@ -34,12 +34,23 @@ final class HttpDigitalUniversityBridgeClient implements DigitalUniversityBridge
 
     @Override
     public JsonNode getStudentByEmail(String email) {
-        return get(properties.studentPath(), Map.of("studentEmail", email));
+        return getStudentByEmail(email, currentToken());
+    }
+
+    @Override
+    public JsonNode getStudentByEmail(String email, String bearerToken) {
+        return get(bearerToken, properties.studentPath(), Map.of("studentEmail", email));
     }
 
     @Override
     public JsonNode getStudents(Integer course, Integer schoolId, Integer programId, int page, int size) {
+        return getStudents(course, schoolId, programId, page, size, currentToken());
+    }
+
+    @Override
+    public JsonNode getStudents(Integer course, Integer schoolId, Integer programId, int page, int size, String bearerToken) {
         return get(
+                bearerToken,
                 properties.studentsPath(),
                 Map.of(),
                 queryParam("course", course),
@@ -57,7 +68,13 @@ final class HttpDigitalUniversityBridgeClient implements DigitalUniversityBridge
 
     @Override
     public JsonNode getEmployees(Integer schoolId, int page, int size) {
+        return getEmployees(schoolId, page, size, currentToken());
+    }
+
+    @Override
+    public JsonNode getEmployees(Integer schoolId, int page, int size, String bearerToken) {
         return get(
+                bearerToken,
                 properties.employeesPath(),
                 Map.of(),
                 queryParam("schoolId", schoolId),
@@ -68,7 +85,12 @@ final class HttpDigitalUniversityBridgeClient implements DigitalUniversityBridge
 
     @Override
     public JsonNode getEmployee(Integer employeeId) {
-        return get(properties.employeePath(), Map.of("employeeId", employeeId));
+        return getEmployee(employeeId, currentToken());
+    }
+
+    @Override
+    public JsonNode getEmployee(Integer employeeId, String bearerToken) {
+        return get(bearerToken, properties.employeePath(), Map.of("employeeId", employeeId));
     }
 
     @Override
@@ -78,7 +100,12 @@ final class HttpDigitalUniversityBridgeClient implements DigitalUniversityBridge
 
     @Override
     public JsonNode getSchools(Integer schoolId) {
-        return get(properties.schoolsPath(), Map.of(), queryParam("schoolId", schoolId));
+        return getSchools(schoolId, currentToken());
+    }
+
+    @Override
+    public JsonNode getSchools(Integer schoolId, String bearerToken) {
+        return get(bearerToken, properties.schoolsPath(), Map.of(), queryParam("schoolId", schoolId));
     }
 
     @Override
@@ -88,7 +115,12 @@ final class HttpDigitalUniversityBridgeClient implements DigitalUniversityBridge
 
     @Override
     public JsonNode getEducationPrograms(Integer programId) {
-        return get(properties.educationProgramsPath(), Map.of(), queryParam("programId", programId));
+        return getEducationPrograms(programId, currentToken());
+    }
+
+    @Override
+    public JsonNode getEducationPrograms(Integer programId, String bearerToken) {
+        return get(bearerToken, properties.educationProgramsPath(), Map.of(), queryParam("programId", programId));
     }
 
     @Override
@@ -98,7 +130,21 @@ final class HttpDigitalUniversityBridgeClient implements DigitalUniversityBridge
 
     @Override
     public JsonNode getTeacherDisciplines(Integer schoolId, Integer teacherId, Integer academicYear, Integer term, int page, int size) {
+        return getTeacherDisciplines(schoolId, teacherId, academicYear, term, page, size, currentToken());
+    }
+
+    @Override
+    public JsonNode getTeacherDisciplines(
+            Integer schoolId,
+            Integer teacherId,
+            Integer academicYear,
+            Integer term,
+            int page,
+            int size,
+            String bearerToken
+    ) {
         return get(
+                bearerToken,
                 properties.teacherDisciplinesPath(),
                 Map.of(),
                 queryParam("schoolId", schoolId),
@@ -110,13 +156,18 @@ final class HttpDigitalUniversityBridgeClient implements DigitalUniversityBridge
         );
     }
 
-    private JsonNode get(String path, Map<String, ?> uriVariables, QueryParam... queryParams) {
-        var token = tokenResolver.currentToken()
+    private String currentToken() {
+        return tokenResolver.currentToken()
                 .orElseThrow(() -> new AccessDeniedException("Digital University bearer token is required"));
+    }
 
+    private JsonNode get(String bearerToken, String path, Map<String, ?> uriVariables, QueryParam... queryParams) {
+        if (bearerToken == null || bearerToken.isBlank()) {
+            throw new AccessDeniedException("Digital University bearer token is required");
+        }
         var response = restClient.get()
                 .uri(builder -> uri(path, builder, uriVariables, queryParams))
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken.trim())
                 .retrieve()
                 .body(String.class);
         try {

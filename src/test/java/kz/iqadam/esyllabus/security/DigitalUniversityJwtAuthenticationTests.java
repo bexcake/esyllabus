@@ -49,6 +49,7 @@ class DigitalUniversityJwtAuthenticationTests {
     @Test
     void acceptsDigitalUniversityBearerToken() throws Exception {
         var token = token(Map.of(
+                "sub", 1001,
                 "email", "teacher@astanait.edu.kz",
                 "name", "AITU Teacher",
                 "roles", List.of("lecturer"),
@@ -60,12 +61,46 @@ class DigitalUniversityJwtAuthenticationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("teacher@astanait.edu.kz"))
                 .andExpect(jsonPath("$.displayName").value("AITU Teacher"))
-                .andExpect(jsonPath("$.roles[0]").value("TEACHER"));
+                .andExpect(jsonPath("$.roles[0]").value("TEACHER"))
+                .andExpect(jsonPath("$.employeeId").value(1001));
+    }
+
+    @Test
+    void exposesSameProfileOnShortMeEndpoint() throws Exception {
+        var token = token(Map.of(
+                "sub", 1002,
+                "email", "director@astanait.edu.kz",
+                "name", "AITU Director",
+                "roles", List.of("director"),
+                "exp", Instant.now().plusSeconds(300).getEpochSecond()
+        ));
+
+        mockMvc.perform(get("/api/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("director@astanait.edu.kz"))
+                .andExpect(jsonPath("$.roles[0]").value("DIRECTOR"))
+                .andExpect(jsonPath("$.employeeId").value(1002));
+    }
+
+    @Test
+    void rejectsTokenWithoutEmployeeIdSubject() throws Exception {
+        var token = token(Map.of(
+                "email", "teacher@astanait.edu.kz",
+                "roles", List.of("teacher"),
+                "exp", Instant.now().plusSeconds(300).getEpochSecond()
+        ));
+
+        mockMvc.perform(get("/api/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Invalid Digital University bearer token"));
     }
 
     @Test
     void rejectsInvalidDigitalUniversityBearerTokenSignature() throws Exception {
         var token = token(Map.of(
+                "sub", 1001,
                 "email", "teacher@astanait.edu.kz",
                 "roles", List.of("teacher"),
                 "exp", Instant.now().plusSeconds(300).getEpochSecond()

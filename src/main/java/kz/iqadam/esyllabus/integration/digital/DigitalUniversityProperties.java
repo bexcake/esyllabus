@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record DigitalUniversityProperties(
         boolean enabled,
         URI baseUrl,
+        String serviceToken,
         String studentPath,
         String studentsPath,
         String employeesPath,
@@ -18,8 +19,18 @@ public record DigitalUniversityProperties(
         String teacherDisciplinesPath,
         Duration connectTimeout,
         Duration readTimeout,
+        Cache cache,
         Jwt jwt
 ) {
+
+    public record Cache(
+            boolean enabled,
+            Duration refreshInterval,
+            String refreshCron,
+            int pageSize,
+            int maxPages
+    ) {
+    }
 
     public record Jwt(
             boolean enabled,

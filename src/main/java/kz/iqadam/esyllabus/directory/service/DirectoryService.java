@@ -23,6 +23,8 @@ import kz.iqadam.esyllabus.directory.persistence.SchoolEntity;
 import kz.iqadam.esyllabus.directory.persistence.SchoolRepository;
 import kz.iqadam.esyllabus.directory.persistence.StaffProfileEntity;
 import kz.iqadam.esyllabus.directory.persistence.StaffProfileRepository;
+import kz.iqadam.esyllabus.integration.digital.persistence.DigitalUniversityProgramEntity;
+import kz.iqadam.esyllabus.integration.digital.persistence.DigitalUniversityProgramRepository;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseEntity;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseRepository;
 import kz.iqadam.esyllabus.syllabus.persistence.SyllabusRepository;
@@ -61,17 +63,20 @@ public class DirectoryService {
 
     private final SchoolRepository schoolRepository;
     private final StaffProfileRepository staffProfileRepository;
+    private final DigitalUniversityProgramRepository digitalUniversityProgramRepository;
     private final CourseRepository courseRepository;
     private final SyllabusRepository syllabusRepository;
 
     public DirectoryService(
             SchoolRepository schoolRepository,
             StaffProfileRepository staffProfileRepository,
+            DigitalUniversityProgramRepository digitalUniversityProgramRepository,
             CourseRepository courseRepository,
             SyllabusRepository syllabusRepository
     ) {
         this.schoolRepository = schoolRepository;
         this.staffProfileRepository = staffProfileRepository;
+        this.digitalUniversityProgramRepository = digitalUniversityProgramRepository;
         this.courseRepository = courseRepository;
         this.syllabusRepository = syllabusRepository;
     }
@@ -103,7 +108,17 @@ public class DirectoryService {
         var normalizedDegreeLevel = normalized(degreeLevel);
         var normalizedSearch = normalized(search);
 
-        return courseRepository.findAll().stream()
+        var programs = new ArrayList<ProgramDirectoryResponse>();
+
+        digitalUniversityProgramRepository.findAll().stream()
+                .filter(DigitalUniversityProgramEntity::isActive)
+                .filter(program -> normalizedSchoolId == null || normalizedSchoolId.equalsIgnoreCase(program.getSchoolId()))
+                .map(program -> toDigitalUniversityProgramResponse(program, schoolNames))
+                .filter(program -> normalizedDegreeLevel == null || normalizedDegreeLevel.equalsIgnoreCase(program.degreeLevel()))
+                .filter(program -> normalizedSearch == null || searchable(program).contains(normalizedSearch.toLowerCase(Locale.ROOT)))
+                .forEach(programs::add);
+
+        courseRepository.findAll().stream()
                 .filter(course -> normalizedSchoolId == null || normalizedSchoolId.equalsIgnoreCase(course.getSchoolId()))
                 .filter(course -> normalizedDegreeLevel == null || normalizedDegreeLevel.equalsIgnoreCase(course.getDegreeLevel()))
                 .collect(Collectors.groupingBy(
@@ -114,6 +129,16 @@ public class DirectoryService {
                 .entrySet().stream()
                 .map(entry -> toProgramResponse(entry.getKey(), entry.getValue(), schoolNames))
                 .filter(program -> normalizedSearch == null || searchable(program).contains(normalizedSearch.toLowerCase(Locale.ROOT)))
+                .forEach(programs::add);
+
+        return programs.stream()
+                .collect(Collectors.toMap(
+                        program -> program.schoolId() + "|" + program.name() + "|" + program.degreeLevel(),
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ))
+                .values().stream()
                 .sorted(Comparator.comparing(ProgramDirectoryResponse::schoolName).thenComparing(ProgramDirectoryResponse::name))
                 .toList();
     }
@@ -323,6 +348,20 @@ public class DirectoryService {
         );
     }
 
+    private ProgramDirectoryResponse toDigitalUniversityProgramResponse(
+            DigitalUniversityProgramEntity program,
+            Map<String, String> schoolNames
+    ) {
+        return new ProgramDirectoryResponse(
+                program.getId(),
+                defaulted(program.getCode(), "DU-" + Objects.toString(program.getExternalProgramId(), "PROGRAM")),
+                program.getName(),
+                "Program",
+                program.getSchoolId(),
+                schoolNames.getOrDefault(program.getSchoolId(), program.getSchoolId())
+        );
+    }
+
     private StaffPickerOptionResponse toStaffPickerOption(StaffProfileEntity item, String schoolName) {
         return new StaffPickerOptionResponse(
                 item.getUsername(),
@@ -394,6 +433,11 @@ public class DirectoryService {
         return value.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
+    }
+
+    private String defaulted(String value, String fallback) {
+        var normalized = normalized(value);
+        return normalized == null ? fallback : normalized;
     }
 
     private Comparator<StaffProfileEntity> staffPriorityComparator(String prioritizedSchoolId) {

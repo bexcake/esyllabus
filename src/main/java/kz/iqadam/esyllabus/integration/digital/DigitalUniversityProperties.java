@@ -9,7 +9,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record DigitalUniversityProperties(
         boolean enabled,
         URI baseUrl,
-        String serviceToken,
         String studentPath,
         String studentsPath,
         String employeesPath,

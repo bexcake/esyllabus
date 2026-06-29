@@ -33,7 +33,6 @@ services:
 
       DU_ENABLED: ${DU_ENABLED:-true}
       DU_BASE_URL: ${DU_BASE_URL:-https://bridge-du.astanait.edu.kz}
-      DU_SERVICE_TOKEN: ${DU_SERVICE_TOKEN:-}
       DU_CACHE_ENABLED: ${DU_CACHE_ENABLED:-true}
       DU_CACHE_REFRESH_INTERVAL: ${DU_CACHE_REFRESH_INTERVAL:-12h}
       DU_CACHE_REFRESH_CRON: "${DU_CACHE_REFRESH_CRON:-0 0 */12 * * *}"

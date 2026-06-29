@@ -3,7 +3,6 @@ package kz.iqadam.esyllabus.integration.digital;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -17,56 +16,124 @@ import kz.iqadam.esyllabus.security.DigitalUniversityUserProvisioningService;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseEntity;
 import kz.iqadam.esyllabus.syllabus.persistence.CourseRepository;
 import kz.iqadam.esyllabus.syllabus.service.CourseMetadataSupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class DigitalUniversityDirectoryCacheService {
 
+    private static final Logger log = LoggerFactory.getLogger(DigitalUniversityDirectoryCacheService.class);
+
     private static final String REFERENCE_DATA_CACHE_KEY = "reference-data";
-    private static final String SCHOOLS_CACHE_KEY = "schools";
-    private static final String EMPLOYEES_CACHE_KEY = "employees";
-    private static final String PROGRAMS_CACHE_KEY = "education-programs";
-    private static final String TEACHER_DISCIPLINES_CACHE_KEY = "teacher-disciplines";
 
     private final DigitalUniversityBridgeClient digitalUniversityBridgeClient;
     private final DigitalUniversityProperties properties;
+    private final DigitalUniversityUserTokenRegistry userTokenRegistry;
     private final DigitalUniversityCacheEntryRepository cacheEntryRepository;
     private final DigitalUniversityProgramRepository programRepository;
     private final CourseRepository courseRepository;
     private final DigitalUniversityUserProvisioningService userProvisioningService;
     private final ObjectMapper objectMapper;
+    private final TaskExecutor taskExecutor;
+    private final TransactionTemplate transactionTemplate;
     private Instant refreshFailureCooldownUntil;
+    private boolean refreshInProgress;
+    private boolean refreshPending;
 
     public DigitalUniversityDirectoryCacheService(
             DigitalUniversityBridgeClient digitalUniversityBridgeClient,
             DigitalUniversityProperties properties,
+            DigitalUniversityUserTokenRegistry userTokenRegistry,
             DigitalUniversityCacheEntryRepository cacheEntryRepository,
             DigitalUniversityProgramRepository programRepository,
             CourseRepository courseRepository,
             DigitalUniversityUserProvisioningService userProvisioningService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            @Qualifier("applicationTaskExecutor") TaskExecutor taskExecutor,
+            TransactionTemplate transactionTemplate
     ) {
         this.digitalUniversityBridgeClient = digitalUniversityBridgeClient;
         this.properties = properties;
+        this.userTokenRegistry = userTokenRegistry;
         this.cacheEntryRepository = cacheEntryRepository;
         this.programRepository = programRepository;
         this.courseRepository = courseRepository;
         this.userProvisioningService = userProvisioningService;
         this.objectMapper = objectMapper;
+        this.taskExecutor = taskExecutor;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Scheduled(cron = "${digital-university.cache.refresh-cron:0 0 */12 * * *}")
-    public void refreshFromServiceTokenIfConfigured() {
-        var serviceToken = normalized(properties.serviceToken());
-        if (serviceToken != null) {
-            refreshReferenceDataIfStale(serviceToken);
+    public void refreshFromLatestUserTokenIfConfigured() {
+        requestRefreshWhenTokenAvailable("scheduled");
+    }
+
+    public void requestRefreshWhenTokenAvailable(String trigger) {
+        String bearerToken;
+        synchronized (this) {
+            if (!cacheEnabled()) {
+                return;
+            }
+            var now = Instant.now();
+            if (!referenceDataIsStale(now)) {
+                refreshPending = false;
+                return;
+            }
+            if (refreshFailureCooldownUntil != null && now.isBefore(refreshFailureCooldownUntil)) {
+                refreshPending = true;
+                return;
+            }
+            var token = userTokenRegistry.currentToken();
+            if (token.isEmpty()) {
+                refreshPending = true;
+                if (!"user-token".equals(trigger)) {
+                    log.info("digital_university_sync_waiting_for_user_token trigger={}", trigger);
+                }
+                return;
+            }
+            if (refreshInProgress) {
+                refreshPending = true;
+                return;
+            }
+            bearerToken = token.get();
+            refreshInProgress = true;
+            refreshPending = false;
+        }
+
+        taskExecutor.execute(() -> runRefreshInBackground(bearerToken, trigger));
+    }
+
+    private void runRefreshInBackground(String bearerToken, String trigger) {
+        try {
+            transactionTemplate.executeWithoutResult(status -> refreshReferenceDataIfStale(bearerToken));
+            log.info("digital_university_sync_completed trigger={}", trigger);
+        } catch (RuntimeException exception) {
+            synchronized (this) {
+                refreshFailureCooldownUntil = Instant.now().plus(failureCooldown());
+                refreshPending = true;
+            }
+            log.warn("digital_university_sync_failed trigger={} message=\"{}\"", trigger, exception.getMessage());
+        } finally {
+            synchronized (this) {
+                refreshInProgress = false;
+            }
         }
     }
 
+    private boolean referenceDataIsStale(Instant now) {
+        var marker = cacheEntryRepository.findById(REFERENCE_DATA_CACHE_KEY);
+        return marker.isEmpty() || !marker.get().getExpiresAt().isAfter(now);
+    }
+
     @Transactional
-    public synchronized void refreshReferenceDataIfStale(String bearerToken) {
+    public void refreshReferenceDataIfStale(String bearerToken) {
         if (!cacheEnabled() || normalized(bearerToken) == null) {
             return;
         }
@@ -75,31 +142,35 @@ public class DigitalUniversityDirectoryCacheService {
         if (marker.isPresent() && marker.get().getExpiresAt().isAfter(now)) {
             return;
         }
-        if (refreshFailureCooldownUntil != null && now.isBefore(refreshFailureCooldownUntil)) {
-            return;
+        synchronized (this) {
+            if (refreshFailureCooldownUntil != null && now.isBefore(refreshFailureCooldownUntil)) {
+                return;
+            }
         }
         try {
             refreshReferenceData(bearerToken.trim(), now);
-            refreshFailureCooldownUntil = null;
+            synchronized (this) {
+                refreshFailureCooldownUntil = null;
+            }
         } catch (RuntimeException exception) {
-            refreshFailureCooldownUntil = now.plus(failureCooldown());
+            synchronized (this) {
+                refreshFailureCooldownUntil = now.plus(failureCooldown());
+            }
             throw exception;
         }
     }
 
     @Transactional
-    public synchronized void refreshReferenceData(String bearerToken, Instant now) {
+    public void refreshReferenceData(String bearerToken, Instant now) {
         var expiresAt = now.plus(refreshInterval());
         var pageSize = pageSize();
         var maxPages = maxPages();
 
         var schools = items(digitalUniversityBridgeClient.getSchools(null, bearerToken));
         schools.forEach(userProvisioningService::upsertSchool);
-        cache(SCHOOLS_CACHE_KEY, schools, now, expiresAt);
 
         var programs = items(digitalUniversityBridgeClient.getEducationPrograms(null, bearerToken));
         programs.forEach(program -> upsertProgram(program, now));
-        cache(PROGRAMS_CACHE_KEY, programs, now, expiresAt);
 
         var employees = collectPaged(
                 (page, size) -> digitalUniversityBridgeClient.getEmployees(null, page, size, bearerToken),
@@ -109,7 +180,6 @@ public class DigitalUniversityDirectoryCacheService {
         employees.stream()
                 .filter(employee -> longValue(employee.path("employeeId")) != null || longValue(employee.path("id")) != null)
                 .forEach(employee -> userProvisioningService.upsertEmployee(employee, bearerToken, expiresAt, now));
-        cache(EMPLOYEES_CACHE_KEY, employees, now, expiresAt);
 
         var teacherDisciplines = collectPaged(
                 (page, size) -> digitalUniversityBridgeClient.getTeacherDisciplines(null, null, null, null, page, size, bearerToken),
@@ -117,9 +187,8 @@ public class DigitalUniversityDirectoryCacheService {
                 maxPages
         );
         teacherDisciplines.forEach(item -> upsertCourseFromTeacherDiscipline(item, now));
-        cache(TEACHER_DISCIPLINES_CACHE_KEY, teacherDisciplines, now, expiresAt);
 
-        cache(REFERENCE_DATA_CACHE_KEY, List.of(), now, expiresAt);
+        markReferenceDataSynced(now, expiresAt);
     }
 
     private void upsertProgram(JsonNode item, Instant now) {
@@ -277,19 +346,14 @@ public class DigitalUniversityDirectoryCacheService {
         return (int) Math.ceil(totalItems / (double) Math.max(1, pageSize));
     }
 
-    private void cache(String key, List<JsonNode> items, Instant refreshedAt, Instant expiresAt) {
-        var entity = cacheEntryRepository.findById(key).orElseGet(DigitalUniversityCacheEntryEntity::new);
-        entity.setId(key);
-        entity.setPayloadJson(writeJson(array(items)));
+    private void markReferenceDataSynced(Instant refreshedAt, Instant expiresAt) {
+        var entity = cacheEntryRepository.findById(REFERENCE_DATA_CACHE_KEY)
+                .orElseGet(DigitalUniversityCacheEntryEntity::new);
+        entity.setId(REFERENCE_DATA_CACHE_KEY);
+        entity.setPayloadJson("{}");
         entity.setRefreshedAt(refreshedAt);
         entity.setExpiresAt(expiresAt);
         cacheEntryRepository.save(entity);
-    }
-
-    private ArrayNode array(List<JsonNode> items) {
-        var array = objectMapper.createArrayNode();
-        items.forEach(array::add);
-        return array;
     }
 
     private boolean cacheEnabled() {

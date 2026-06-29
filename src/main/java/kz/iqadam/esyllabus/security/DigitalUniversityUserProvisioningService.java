@@ -3,9 +3,7 @@ package kz.iqadam.esyllabus.security;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -76,23 +74,14 @@ public class DigitalUniversityUserProvisioningService {
             );
         }
 
-        var now = Instant.now();
-        var cacheExpiresAt = claims.expiresAt() == null ? cacheExpiresAtFallback() : claims.expiresAt();
         var existing = findExistingProfile(claims);
-        var cached = existing
-                .filter(profile -> profile.getDuRawJson() != null)
-                .filter(profile -> profile.getDuCacheExpiresAt() != null && profile.getDuCacheExpiresAt().isAfter(now));
-        if (cached.isPresent()) {
-            return toAuthenticatedUser(cached.get(), readRawJson(cached.get().getDuRawJson()));
+        if (existing.isPresent()) {
+            var profile = existing.get();
+            var raw = profile.getDuRawJson() == null ? objectMapper.createObjectNode() : readRawJson(profile.getDuRawJson());
+            return toAuthenticatedUser(profile, raw);
         }
 
-        var employee = resolveEmployeeForUserId(claims.userId(), existing.orElse(null), bearerToken, cacheExpiresAt, now);
-        if (employee == null || employee.isMissingNode() || employee.isNull() || employee.isEmpty()) {
-            throw new BadCredentialsException("Digital University employee profile was not found");
-        }
-
-        var profile = upsertEmployee(employee, bearerToken, cacheExpiresAt, now);
-        return toAuthenticatedUser(profile, employee);
+        return fallbackAuthenticatedUser(claims);
     }
 
     private Optional<StaffProfileEntity> findExistingProfile(DigitalUniversityJwtClaims claims) {
@@ -100,138 +89,26 @@ public class DigitalUniversityUserProvisioningService {
                 .or(() -> staffProfileRepository.findByEmailIgnoreCase(claims.principal()));
     }
 
-    private JsonNode resolveEmployeeForUserId(
-            Long userId,
-            StaffProfileEntity existingProfile,
-            String bearerToken,
-            Instant cacheExpiresAt,
-            Instant now
-    ) {
-        if (existingProfile != null && userId.equals(existingProfile.getDuUserId()) && existingProfile.getDuEmployeeId() != null) {
-            var detailed = getEmployeeByEmployeeId(existingProfile.getDuEmployeeId(), bearerToken);
-            if (isUsableEmployee(detailed)) {
-                return detailed;
-            }
-            if (existingProfile.getDuRawJson() != null) {
-                return readRawJson(existingProfile.getDuRawJson());
-            }
-        }
-
-        ensureSchoolsLoaded(bearerToken);
-
-        var pageSize = pageSize();
-        var maxPages = maxPages();
-        var firstResponse = digitalUniversityBridgeClient.getEmployees(null, 0, pageSize, bearerToken);
-        var firstItems = items(firstResponse);
-        upsertEmployees(firstItems, bearerToken, cacheExpiresAt, now);
-
-        var found = findEmployeeInList(userId, firstItems);
-        if (found != null) {
-            return getDetailedEmployeeOrFallback(found, bearerToken);
-        }
-
-        var totalItems = totalItems(firstResponse);
-        if (totalItems != null && totalItems > firstItems.size() && totalItems <= (long) pageSize * maxPages) {
-            var allResponse = digitalUniversityBridgeClient.getEmployees(null, 0, Math.toIntExact(totalItems), bearerToken);
-            var allItems = items(allResponse);
-            if (allItems.size() > firstItems.size()) {
-                upsertEmployees(allItems, bearerToken, cacheExpiresAt, now);
-                found = findEmployeeInList(userId, allItems);
-                if (found != null) {
-                    return getDetailedEmployeeOrFallback(found, bearerToken);
-                }
-                return null;
-            }
-        }
-
-        for (var page = 1; page < maxPages; page++) {
-            var response = digitalUniversityBridgeClient.getEmployees(null, page, pageSize, bearerToken);
-            var pageItems = items(response);
-            if (pageItems.isEmpty()) {
-                break;
-            }
-            upsertEmployees(pageItems, bearerToken, cacheExpiresAt, now);
-            found = findEmployeeInList(userId, pageItems);
-            if (found != null) {
-                return getDetailedEmployeeOrFallback(found, bearerToken);
-            }
-
-            var totalPages = totalPages(response, pageSize);
-            if (totalPages != null && page + 1 >= totalPages) {
-                break;
-            }
-            if (totalPages == null && pageItems.size() < pageSize) {
-                break;
-            }
-        }
-
-        return null;
-    }
-
-    private void ensureSchoolsLoaded(String bearerToken) {
-        if (schoolRepository.count() > 0) {
-            return;
-        }
-        items(digitalUniversityBridgeClient.getSchools(null, bearerToken)).forEach(this::upsertSchool);
-    }
-
-    private void upsertEmployees(List<JsonNode> employees, String bearerToken, Instant cacheExpiresAt, Instant now) {
-        employees.stream()
-                .filter(employee -> employeeId(employee) != null)
-                .forEach(employee -> upsertEmployee(employee, bearerToken, cacheExpiresAt, now));
-    }
-
-    private JsonNode findEmployeeInList(Long userId, List<JsonNode> employees) {
-        for (var employee : employees) {
-            if (userId.equals(userId(employee))) {
-                return employee;
-            }
-        }
-        return null;
-    }
-
-    private JsonNode getDetailedEmployeeOrFallback(JsonNode employee, String bearerToken) {
-        var employeeId = employeeId(employee);
-        if (employeeId == null) {
-            return employee;
-        }
-        var detailed = getEmployeeByEmployeeId(employeeId, bearerToken);
-        if (!isUsableEmployee(detailed)) {
-            return employee;
-        }
-        return mergeIdentityFields(detailed, employee);
-    }
-
-    private JsonNode mergeIdentityFields(JsonNode detailed, JsonNode source) {
-        if (!detailed.isObject()) {
-            return detailed;
-        }
-        var result = (ObjectNode) detailed.deepCopy();
-        if (!result.hasNonNull("employeeId")) {
-            var employeeId = employeeId(source);
-            if (employeeId != null) {
-                result.put("employeeId", employeeId);
-            }
-        }
-        if (!result.hasNonNull("userId")) {
-            var userId = userId(source);
-            if (userId != null) {
-                result.put("userId", userId);
-            }
-        }
-        return result;
-    }
-
-    private JsonNode getEmployeeByEmployeeId(Long employeeId, String bearerToken) {
-        try {
-            return digitalUniversityBridgeClient.getEmployee(Math.toIntExact(employeeId), bearerToken);
-        } catch (RuntimeException exception) {
-            return null;
-        }
-    }
-
-    private boolean isUsableEmployee(JsonNode employee) {
-        return employee != null && !employee.isMissingNode() && !employee.isNull() && !employee.isEmpty();
+    private AuthenticatedUser fallbackAuthenticatedUser(DigitalUniversityJwtClaims claims) {
+        var roles = claims.roles().isEmpty()
+                ? Set.of("TEACHER")
+                : claims.roles().stream()
+                .map(RoleNormalizer::normalizeRole)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        return new AuthenticatedUser(
+                claims.principal(),
+                claims.displayName(),
+                roles,
+                null,
+                claims.userId(),
+                claims.principal(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                objectMapper.createObjectNode()
+        );
     }
 
     @Transactional
@@ -390,30 +267,6 @@ public class DigitalUniversityUserProvisioningService {
         return result;
     }
 
-    private Long totalItems(JsonNode response) {
-        if (response == null || response.isNull() || response.isMissingNode()) {
-            return null;
-        }
-        return firstLong(
-                response.path("totalElements"),
-                response.path("totalItems"),
-                response.path("total"),
-                response.path("count")
-        );
-    }
-
-    private Integer totalPages(JsonNode response, int pageSize) {
-        var explicit = integerValue(response.path("totalPages"));
-        if (explicit != null) {
-            return explicit;
-        }
-        var totalItems = totalItems(response);
-        if (totalItems == null) {
-            return null;
-        }
-        return (int) Math.ceil(totalItems / (double) Math.max(1, pageSize));
-    }
-
     private String appRole(StaffRole role) {
         return switch (role) {
             case SCHOOL_DIRECTOR -> "DIRECTOR";
@@ -457,12 +310,6 @@ public class DigitalUniversityUserProvisioningService {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to cache Digital University employee profile", exception);
         }
-    }
-
-    private Instant cacheExpiresAtFallback() {
-        var cache = properties.cache();
-        var refreshInterval = cache == null ? null : cache.refreshInterval();
-        return Instant.now().plus(refreshInterval == null ? java.time.Duration.ofHours(12) : refreshInterval);
     }
 
     private Long requiredEmployeeId(JsonNode employee) {
@@ -514,26 +361,6 @@ public class DigitalUniversityUserProvisioningService {
         } catch (NumberFormatException ignored) {
             return null;
         }
-    }
-
-    private Integer integerValue(JsonNode node) {
-        var value = longValue(node);
-        if (value == null || value > Integer.MAX_VALUE || value < Integer.MIN_VALUE) {
-            return null;
-        }
-        return value.intValue();
-    }
-
-    private int pageSize() {
-        var cache = properties.cache();
-        var value = cache == null ? 100 : cache.pageSize();
-        return Math.max(1, value);
-    }
-
-    private int maxPages() {
-        var cache = properties.cache();
-        var value = cache == null ? 50 : cache.maxPages();
-        return Math.max(1, value);
     }
 
     private Integer integerValue(String value) {

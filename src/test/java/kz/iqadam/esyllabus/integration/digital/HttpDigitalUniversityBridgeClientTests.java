@@ -73,7 +73,6 @@ class HttpDigitalUniversityBridgeClientTests {
         return new DigitalUniversityProperties(
                 true,
                 URI.create(BASE_URL),
-                "",
                 "/api/v1/students/{studentEmail}",
                 "/api/v1/user/students",
                 "/api/v1/user/employees",

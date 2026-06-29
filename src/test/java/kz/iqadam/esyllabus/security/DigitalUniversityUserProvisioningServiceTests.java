@@ -35,7 +35,16 @@ class DigitalUniversityUserProvisioningServiceTests {
     private FakeDigitalUniversityBridgeClient bridgeClient;
 
     @Test
-    void provisionsEmployeeFromJwtUserIdAndAssignsDirectorRoleFromSchoolHead() {
+    void provisionsEmployeeFromLocalSyncWithoutCallingDigitalUniversity() {
+        provisioningService.upsertEmployee(
+                bridgeClient.employee(1001, 5001),
+                "sync-token",
+                Instant.now().plus(Duration.ofHours(12)),
+                Instant.now()
+        );
+        bridgeClient.employeeToken = null;
+        bridgeClient.employeesToken = null;
+
         var claims = new DigitalUniversityJwtClaims(
                 "5001",
                 "5001",
@@ -47,8 +56,8 @@ class DigitalUniversityUserProvisioningServiceTests {
 
         var user = provisioningService.provision(claims, "du-token");
 
-        assertThat(bridgeClient.employeesToken).isEqualTo("du-token");
-        assertThat(bridgeClient.employeeToken).isEqualTo("du-token");
+        assertThat(bridgeClient.employeesToken).isNull();
+        assertThat(bridgeClient.employeeToken).isNull();
         assertThat(user.email()).isEqualTo("director@astanait.edu.kz");
         assertThat(user.employeeId()).isEqualTo(1001L);
         assertThat(user.userId()).isEqualTo(5001L);

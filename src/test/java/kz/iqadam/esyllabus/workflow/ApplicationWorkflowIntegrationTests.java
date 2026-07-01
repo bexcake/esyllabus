@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
@@ -15,6 +16,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
@@ -480,6 +483,15 @@ class ApplicationWorkflowIntegrationTests {
                 .getResponse();
 
         assertThat(new String(pdfResponse.getContentAsByteArray(), 0, 4)).isEqualTo("%PDF");
+
+        try (var document = PDDocument.load(new ByteArrayInputStream(pdfResponse.getContentAsByteArray()))) {
+            var text = new PDFTextStripper().getText(document);
+            assertThat(text)
+                    .contains("General information")
+                    .contains("Goals, objectives and learning outcomes")
+                    .contains("Course Policies")
+                    .contains("Course Schedule");
+        }
     }
 
     private ObjectNode buildCompleteSyllabusContent(

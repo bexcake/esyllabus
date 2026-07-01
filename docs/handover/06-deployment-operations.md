@@ -19,6 +19,7 @@ docker compose up -d --build
 
 ```bash
 curl http://localhost:8080/api/public/health
+curl http://localhost:8080/actuator/health
 curl http://localhost:8080/swagger-ui.html
 ```
 
@@ -97,12 +98,20 @@ Health endpoint:
 
 ```http
 GET /api/public/health
+GET /actuator/health
+GET /actuator/info
 ```
 
 Expected:
 
 ```json
 {"status":"ok"}
+```
+
+Actuator health expected:
+
+```json
+{"status":"UP"}
 ```
 
 HTTP request logs включают:
@@ -168,4 +177,3 @@ cat esyllabus-backup.sql | docker exec -i esyllabus-postgres psql -U "$POSTGRES_
 - Добавить централизованный сбор логов.
 - Добавить мониторинг `/api/public/health`.
 - Добавить автоматический DB backup.
-

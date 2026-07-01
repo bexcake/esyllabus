@@ -123,6 +123,13 @@ class DigitalUniversityJwtAuthenticationTests {
                 .andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE));
     }
 
+    @Test
+    void exposesActuatorHealthWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
     private String token(Map<String, Object> claims) throws Exception {
         var header = Map.of("alg", "HS256", "typ", "JWT");
         var signingInput = base64Url(objectMapper.writeValueAsBytes(header))

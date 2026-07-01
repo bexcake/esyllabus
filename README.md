@@ -9,6 +9,7 @@ Backend-сервис для управления силлабусами, про�
 - Stateless authentication через Digital University Bearer JWT.
 - Basic Auth и тестовые `APP_USER_*` пользователи не используются.
 - OpenAPI доступен через `/swagger-ui.html` и `/v3/api-docs`.
+- Actuator health/info доступны публично через `/actuator/health` и `/actuator/info`.
 - Docker deployment описан в `docker-compose.yml` и `docker-compose.prod.yml`.
 
 ## Документация для передачи
@@ -33,6 +34,7 @@ docker compose up -d --build
 
 ```bash
 curl http://localhost:8080/api/public/health
+curl http://localhost:8080/actuator/health
 ```
 
 Swagger UI:
@@ -70,4 +72,3 @@ Linux/macOS:
 | `DU_CACHE_ENABLED` | Включить sync справочников DU. |
 
 `DU_SERVICE_TOKEN` не используется: sync DU работает только через валидные пользовательские DU JWT, полученные от frontend.
-

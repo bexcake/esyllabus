@@ -2,14 +2,19 @@ package kz.iqadam.esyllabus.syllabus.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.openhtmltopdf.svgsupport.BatikSVGDrawer;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import kz.iqadam.esyllabus.directory.service.DirectoryService;
 import kz.iqadam.esyllabus.security.CurrentUser;
 import kz.iqadam.esyllabus.syllabus.api.SyllabusResponse;
 import org.springframework.http.HttpStatus;
@@ -20,11 +25,16 @@ import org.springframework.web.server.ResponseStatusException;
 public class SyllabusPdfExportService {
 
     private static final String NOT_PROVIDED = "Not provided.";
+    private static final String OFFICIAL_LOGO_SVG = loadOfficialLogo();
+    private static final DateTimeFormatter APPROVAL_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+            .withZone(ZoneId.of("Asia/Almaty"));
 
     private final SyllabusService syllabusService;
+    private final DirectoryService directoryService;
 
-    public SyllabusPdfExportService(SyllabusService syllabusService) {
+    public SyllabusPdfExportService(SyllabusService syllabusService, DirectoryService directoryService) {
         this.syllabusService = syllabusService;
+        this.directoryService = directoryService;
     }
 
     public byte[] exportSyllabus(CurrentUser user, String syllabusId) {
@@ -34,6 +44,7 @@ public class SyllabusPdfExportService {
         try (var output = new ByteArrayOutputStream()) {
             var builder = new PdfRendererBuilder();
             builder.useFastMode();
+            builder.useSVGDrawer(new BatikSVGDrawer());
             registerFonts(builder);
             builder.withHtmlContent(html, null);
             builder.toStream(output);
@@ -73,18 +84,8 @@ public class SyllabusPdfExportService {
                         }
                         .topline { border-top: 1.2px solid #111; height: 1px; margin-bottom: 18px; }
                         .header { min-height: 96px; position: relative; }
-                        .brand { position: absolute; left: 0; top: 16px; font-weight: bold; font-size: 10pt; line-height: 1.1; }
-                        .brand-mark {
-                            display: inline-block;
-                            border: 1.6px solid #111;
-                            border-radius: 50%;
-                            width: 34px;
-                            height: 34px;
-                            text-align: center;
-                            line-height: 33px;
-                            margin-right: 8px;
-                            font-size: 8pt;
-                        }
+                        .brand { position: absolute; left: 0; top: 4px; width: 132px; height: 70px; }
+                        .brand svg { display: block; width: 132px; height: 70px; }
                         .approval {
                             position: absolute;
                             right: 0;
@@ -99,7 +100,18 @@ public class SyllabusPdfExportService {
                         .title h1 { margin: 0; font-size: 14.5pt; }
                         .title h2 { margin: 2px 0 0; font-size: 13pt; }
                         table { border-collapse: collapse; width: 100%; }
-                        .syllabus-table { table-layout: fixed; border: 1.2px solid #111; margin-bottom: 10px; }
+                        thead { display: table-header-group; }
+                        tfoot { display: table-footer-group; }
+                        tr { page-break-inside: avoid; }
+                        .syllabus-table {
+                            -fs-table-paginate: paginate;
+                            table-layout: fixed;
+                            border: 1.2px solid #111;
+                            margin-bottom: 10px;
+                        }
+                        .schedule-table { page-break-before: always; }
+                        .abbreviations-table,
+                        .section-collection { page-break-inside: avoid; }
                         .syllabus-table th,
                         .syllabus-table td {
                             border: 0.8px solid #111;
@@ -130,7 +142,7 @@ public class SyllabusPdfExportService {
                 <body>
                 """);
 
-        appendHeader(html, syllabus, content);
+        appendHeader(html, syllabus, content, directorDisplayName(syllabus, content));
         appendGeneralInformation(html, syllabus, content);
         appendCourseOutcomes(html, content);
         appendAbbreviations(html, content.path("abbreviations"));
@@ -144,18 +156,27 @@ public class SyllabusPdfExportService {
         return html.toString();
     }
 
-    private void appendHeader(StringBuilder html, SyllabusResponse syllabus, JsonNode content) {
+    private void appendHeader(StringBuilder html, SyllabusResponse syllabus, JsonNode content, String directorName) {
+        var published = "Published".equalsIgnoreCase(syllabus.status());
         html.append("""
                 <div class="topline"></div>
                 <div class="header">
-                    <div class="brand"><span class="brand-mark">AITU</span>ASTANA IT<br />UNIVERSITY</div>
-                    <div class="approval">
-                        <strong>&#171;Approved&#187;</strong><br />
+                    <div class="brand">
                 """);
-        html.append(escape(approvalRole(syllabus))).append("<br />");
+        html.append(OFFICIAL_LOGO_SVG);
         html.append("""
-                        <div class="signature-line"></div>
-                        &#171;____&#187; __________ 20____
+                    </div>
+                    <div class="approval">
+                """);
+        html.append(published ? "<strong>&#171;Approved&#187;</strong><br />" : "<strong>&#171;For approval&#187;</strong><br />");
+        html.append(escape(approvalRole(directorName))).append("<br />");
+        if (published && syllabus.updatedAt() != null) {
+            html.append("<div class=\"signature-line\"></div><span class=\"small\">Approved electronically</span><br />")
+                    .append(escape(APPROVAL_DATE.format(syllabus.updatedAt())));
+        } else {
+            html.append("<div class=\"signature-line\"></div>&#171;____&#187; __________ 20____");
+        }
+        html.append("""
                     </div>
                 </div>
                 <div class="title">
@@ -175,7 +196,8 @@ public class SyllabusPdfExportService {
                         <col class="label" />
                         <col class="value" />
                     </colgroup>
-                    <tr><th colspan="2" class="section-title">1. General information</th></tr>
+                    <thead><tr><th colspan="2" class="section-title">1. General information</th></tr></thead>
+                    <tbody>
                 """);
         appendRow(html, "Course Code", text(content, "code", ""));
         appendRow(html, "Course Title", text(content, "title", syllabus.id()));
@@ -187,7 +209,7 @@ public class SyllabusPdfExportService {
         appendRowHtml(html, "Workload of<br />course components and<br />credits per trimester", workloadTable(content.path("workload"), content.path("credits")));
         appendRow(html, "Prerequisites", text(content, "prerequisites", ""));
         appendRow(html, "Post requisites", firstNonBlank(text(content, "postrequisites", ""), text(content, "post requisites", "")));
-        html.append("</table>");
+        html.append("</tbody></table>");
     }
 
     private void appendCourseOutcomes(StringBuilder html, JsonNode content) {
@@ -197,7 +219,8 @@ public class SyllabusPdfExportService {
                         <col class="numbered-label" />
                         <col class="value" />
                     </colgroup>
-                    <tr><th colspan="2" class="section-title">2. Goals, objectives and learning outcomes of the course</th></tr>
+                    <thead><tr><th colspan="2" class="section-title">2. Goals, objectives and learning outcomes of the course</th></tr></thead>
+                    <tbody>
                 """);
         appendNumberedRow(html, "1.", "Course<br />Overview/Description", renderText(text(content, "overview", "")));
         appendNumberedRow(html, "2.", "Course Learning Goals", renderList(content.path("goals"), NOT_PROVIDED));
@@ -216,7 +239,7 @@ public class SyllabusPdfExportService {
                 text(content, "inclusionStatements", ""),
                 defaultInclusionStatements()
         )));
-        html.append("</table>");
+        html.append("</tbody></table>");
     }
 
     private void appendAbbreviations(StringBuilder html, JsonNode abbreviations) {
@@ -224,9 +247,12 @@ public class SyllabusPdfExportService {
             return;
         }
         html.append("""
-                <table class="syllabus-table">
-                    <tr><th colspan="3" class="section-title">3.1 Abbreviations</th></tr>
-                    <tr><th class="center">#</th><th>Abbreviation</th><th>Meaning</th></tr>
+                <table class="syllabus-table abbreviations-table">
+                    <thead>
+                        <tr><th colspan="3" class="section-title">3.1 Abbreviations</th></tr>
+                        <tr><th class="center">#</th><th>Abbreviation</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
                 """);
         var index = 1;
         for (var item : abbreviations) {
@@ -236,7 +262,7 @@ public class SyllabusPdfExportService {
                     .append(escape(firstNonBlank(field(item, "meaning"), field(item, "description"), field(item, "value"))))
                     .append("</td></tr>");
         }
-        html.append("</table>");
+        html.append("</tbody></table>");
     }
 
     private void appendSchedule(StringBuilder html, JsonNode content) {
@@ -248,31 +274,39 @@ public class SyllabusPdfExportService {
         }
 
         html.append("""
-                <table class="syllabus-table">
-                    <tr><th colspan="6" class="section-title">3.2 Course Schedule</th></tr>
-                    <tr>
-                        <th class="center">Week</th>
-                        <th>Topic</th>
-                        <th>Lecture / Theory</th>
-                        <th>Practice / Lab</th>
-                        <th>Independent work</th>
-                        <th>Assessment / Resources</th>
-                    </tr>
+                <table class="syllabus-table schedule-table">
+                    <thead>
+                        <tr><th colspan="6" class="section-title">3.2 Course Schedule</th></tr>
+                        <tr>
+                            <th class="center">Week</th>
+                            <th>Topic</th>
+                            <th>Lecture / Theory</th>
+                            <th>Practice / Lab</th>
+                            <th>Independent work</th>
+                            <th>Assessment / Resources</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                 """);
 
-        var rows = weeklyPlan.isArray() && !weeklyPlan.isEmpty() ? weeklyPlan : detailedPlan;
-        var index = 1;
-        for (var item : rows) {
+        var rowCount = Math.max(weeklyPlan.isArray() ? weeklyPlan.size() : 0, detailedPlan.isArray() ? detailedPlan.size() : 0);
+        for (var index = 0; index < rowCount; index++) {
+            var weeklyItem = weeklyPlan.path(index);
+            var detailedItem = detailedPlan.path(index);
             html.append("<tr>")
-                    .append("<td class=\"center\">").append(escape(firstNonBlank(field(item, "week"), String.valueOf(index++)))).append("</td>")
-                    .append("<td>").append(renderCell(item, "topic", "module", "section", "title")).append("</td>")
-                    .append("<td>").append(renderCell(item, "lectureTopics", "lecture", "theory", "description")).append("</td>")
-                    .append("<td>").append(renderCell(item, "practiceTopics", "practice", "labTopics", "laboratory", "seminar")).append("</td>")
-                    .append("<td>").append(renderCell(item, "iass", "sis", "independentWork", "homework")).append("</td>")
-                    .append("<td>").append(renderCell(item, "assessment", "resources", "reading", "deliverables")).append("</td>")
+                    .append("<td class=\"center\">").append(escape(firstNonBlank(
+                            firstField(weeklyItem, "week"),
+                            firstField(detailedItem, "week"),
+                            String.valueOf(index + 1)
+                    ))).append("</td>")
+                    .append("<td>").append(renderMergedCell(weeklyItem, detailedItem, "topic", "module", "section", "title")).append("</td>")
+                    .append("<td>").append(renderMergedCell(detailedItem, weeklyItem, "lectureTopics", "lecture", "theory", "description")).append("</td>")
+                    .append("<td>").append(renderMergedCell(detailedItem, weeklyItem, "practiceTopics", "practice", "labTopics", "laboratory", "seminar")).append("</td>")
+                    .append("<td>").append(renderMergedCell(detailedItem, weeklyItem, "iass", "sis", "independentWork", "homework")).append("</td>")
+                    .append("<td>").append(renderMergedCell(detailedItem, weeklyItem, "assessment", "resources", "reading", "deliverables")).append("</td>")
                     .append("</tr>");
         }
-        html.append("</table>");
+        html.append("</tbody></table>");
     }
 
     private void appendCustomSections(StringBuilder html, JsonNode content) {
@@ -284,9 +318,9 @@ public class SyllabusPdfExportService {
         if (!sections.isArray() || sections.isEmpty()) {
             return;
         }
-        html.append("<table class=\"syllabus-table\"><tr><th colspan=\"2\" class=\"section-title\">")
+        html.append("<table class=\"syllabus-table section-collection\"><thead><tr><th colspan=\"2\" class=\"section-title\">")
                 .append(escape(title))
-                .append("</th></tr>");
+                .append("</th></tr></thead><tbody>");
         for (var section : sections) {
             appendRowHtml(
                     html,
@@ -294,7 +328,7 @@ public class SyllabusPdfExportService {
                     renderSectionContent(section)
             );
         }
-        html.append("</table>");
+        html.append("</tbody></table>");
     }
 
     private String workloadTable(JsonNode workload, JsonNode creditsNode) {
@@ -445,8 +479,8 @@ public class SyllabusPdfExportService {
         return paragraphs.isEmpty() ? "<p>" + NOT_PROVIDED + "</p>" : String.join("", paragraphs);
     }
 
-    private String renderCell(JsonNode item, String... fields) {
-        return renderText(firstField(item, fields));
+    private String renderMergedCell(JsonNode primary, JsonNode secondary, String... fields) {
+        return renderText(firstNonBlank(firstField(primary, fields), firstField(secondary, fields)));
     }
 
     private String renderSectionContent(JsonNode section) {
@@ -457,12 +491,98 @@ public class SyllabusPdfExportService {
         if (items.isArray() && !items.isEmpty()) {
             return renderList(items, NOT_PROVIDED);
         }
+
+        var content = section.path("content");
+        if (content.isObject()) {
+            return switch (field(content, "kind")) {
+                case "richText" -> renderText(field(content, "html"));
+                case "links" -> renderLinks(content.path("items"));
+                case "table" -> renderAdditionalTable(content);
+                case "list" -> renderList(content.path("items"), NOT_PROVIDED);
+                case "structured" -> renderStructuredContent(content);
+                default -> renderText(itemText(content));
+            };
+        }
         return renderText(firstNonBlank(
                 field(section, "content"),
                 field(section, "description"),
                 field(section, "text"),
                 field(section, "value")
         ));
+    }
+
+    private String renderLinks(JsonNode links) {
+        if (!links.isArray() || links.isEmpty()) {
+            return renderText(NOT_PROVIDED);
+        }
+        var rows = new ArrayList<String>();
+        for (var link : links) {
+            var label = firstNonBlank(field(link, "label"), field(link, "title"), field(link, "name"));
+            var url = firstNonBlank(field(link, "url"), field(link, "href"));
+            var value = joinNonBlank(label, url);
+            if (normalized(value) != null) {
+                rows.add("<li>" + inlineText(value) + "</li>");
+            }
+        }
+        return rows.isEmpty() ? renderText(NOT_PROVIDED) : "<ul>" + String.join("", rows) + "</ul>";
+    }
+
+    private String renderAdditionalTable(JsonNode content) {
+        var rows = content.path("rows");
+        if (!rows.isArray() || rows.isEmpty()) {
+            return renderText(NOT_PROVIDED);
+        }
+
+        var headers = content.path("columns");
+        if (!headers.isArray() || headers.isEmpty()) {
+            headers = content.path("headers");
+        }
+
+        var html = new StringBuilder("<table class=\"nested\">");
+        if (headers.isArray() && !headers.isEmpty()) {
+            html.append("<tr>");
+            for (var header : headers) {
+                html.append("<th>").append(escape(firstNonBlank(
+                        itemText(header),
+                        field(header, "label"),
+                        field(header, "key")
+                ))).append("</th>");
+            }
+            html.append("</tr>");
+        }
+        for (var row : rows) {
+            if (!row.isArray()) {
+                continue;
+            }
+            html.append("<tr>");
+            for (var cell : row) {
+                html.append("<td>").append(renderText(itemText(cell))).append("</td>");
+            }
+            html.append("</tr>");
+        }
+        return html.append("</table>").toString();
+    }
+
+    private String renderStructuredContent(JsonNode content) {
+        var html = new StringBuilder();
+        var intro = normalized(field(content, "intro"));
+        if (intro != null) {
+            html.append(renderText(intro));
+        }
+        var blocks = content.path("blocks");
+        if (blocks.isArray()) {
+            for (var block : blocks) {
+                var heading = normalized(field(block, "heading"));
+                var body = normalized(field(block, "body"));
+                if (heading != null) {
+                    html.append("<p><strong>").append(escape(heading)).append("</strong></p>");
+                }
+                if (body != null) {
+                    html.append(renderText(body));
+                }
+            }
+        }
+        return html.isEmpty() ? renderText(NOT_PROVIDED) : html.toString();
     }
 
     private String resourceTitle(JsonNode item) {
@@ -500,8 +620,29 @@ public class SyllabusPdfExportService {
                 .append("</td></tr>");
     }
 
-    private String approvalRole(SyllabusResponse syllabus) {
-        var director = normalized(syllabus.directorUsername());
+    private String directorDisplayName(SyllabusResponse syllabus, JsonNode content) {
+        var nameFromContent = firstNonBlank(
+                text(content, "directorFullName", ""),
+                text(content, "directorName", ""),
+                text(content, "approvedBy", "")
+        );
+        if (normalized(nameFromContent) != null) {
+            return nameFromContent;
+        }
+
+        var username = normalized(syllabus.directorUsername());
+        if (username == null || directoryService == null) {
+            return username;
+        }
+        try {
+            return firstNonBlank(directoryService.getStaffByUsername(username).fullName(), username);
+        } catch (ResponseStatusException exception) {
+            return username;
+        }
+    }
+
+    private String approvalRole(String directorName) {
+        var director = normalized(directorName);
         return director == null ? "Director / Dean" : "By Director " + director;
     }
 
@@ -709,6 +850,17 @@ public class SyllabusPdfExportService {
                 builder.useFont(new File(candidate), family);
                 return;
             }
+        }
+    }
+
+    private static String loadOfficialLogo() {
+        try (var input = SyllabusPdfExportService.class.getResourceAsStream("/pdf/aitu-logo.svg")) {
+            if (input == null) {
+                throw new IllegalStateException("Official AITU logo resource is missing");
+            }
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to load official AITU logo resource", exception);
         }
     }
 }

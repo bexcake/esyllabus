@@ -417,6 +417,31 @@ class ApplicationWorkflowIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(linkedLibraryRequestId))
                 .andExpect(jsonPath("$[0].syllabusId").value(syllabusId));
+
+        var publishedPdf = mockMvc.perform(get("/api/syllabi/{syllabusId}/export-pdf", syllabusId)
+                        .with(duUser("teacher", "Aigerim Sadykova", "teacher")))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+
+        try (var document = PDDocument.load(new ByteArrayInputStream(publishedPdf))) {
+            var pdfText = new PDFTextStripper().getText(document).replaceAll("\\s+", " ").trim();
+            assertThat(pdfText)
+                    .contains("Approved")
+                    .contains("Approved electronically")
+                    .contains("By Director Dana Utegenova")
+                    .contains("Public Policy Analysis and Design")
+                    .contains("PPA 302")
+                    .contains("Aigerim Sadykova")
+                    .contains("Policy Design Handbook")
+                    .contains("Gross Domestic Product")
+                    .contains("Policy analysis frameworks")
+                    .contains("Policy design, implementation, and evaluation")
+                    .contains("Consultation and support are available")
+                    .contains("Submit the report and supporting materials in Moodle");
+        }
     }
 
     @Test
@@ -490,7 +515,9 @@ class ApplicationWorkflowIntegrationTests {
                     .contains("General information")
                     .contains("Goals, objectives and learning outcomes")
                     .contains("Course Policies")
-                    .contains("Course Schedule");
+                    .contains("Course Schedule")
+                    .contains("For approval")
+                    .contains("By Director Dana Utegenova");
         }
     }
 
@@ -567,16 +594,40 @@ class ApplicationWorkflowIntegrationTests {
 
         var weeklyPlan = objectMapper.createArrayNode();
         weeklyPlan.addObject()
+                .put("week", 1)
                 .put("topic", "Policy analysis frameworks");
         content.set("weeklyPlan", weeklyPlan);
 
         var detailedPlan = objectMapper.createArrayNode();
         detailedPlan.addObject()
-                .put("lectureTopics", "Policy design, implementation, and evaluation");
+                .put("week", 1)
+                .put("lectureTopics", "Policy design, implementation, and evaluation")
+                .put("practiceTopics", "Policy case workshop")
+                .put("independentWork", "Read the assigned policy case")
+                .put("assessment", "Case analysis submission");
         content.set("detailedPlan", detailedPlan);
 
-        content.set("optionalSections", objectMapper.createArrayNode());
-        content.set("customSections", objectMapper.createArrayNode());
+        var optionalSections = objectMapper.createArrayNode();
+        optionalSections.addObject()
+                .put("title", "Student support")
+                .set("content", objectMapper.createObjectNode()
+                        .put("kind", "richText")
+                        .put("html", "<p>Consultation and support are available during office hours.</p>"));
+        content.set("optionalSections", optionalSections);
+
+        var customSections = objectMapper.createArrayNode();
+        var blocks = objectMapper.createArrayNode();
+        blocks.addObject()
+                .put("heading", "Submission")
+                .put("body", "Submit the report and supporting materials in Moodle.");
+        var structuredContent = objectMapper.createObjectNode();
+        structuredContent.put("kind", "structured");
+        structuredContent.put("intro", "Assessment evidence must be reproducible.");
+        structuredContent.set("blocks", blocks);
+        customSections.addObject()
+                .put("title", "Assessment notes")
+                .set("content", structuredContent);
+        content.set("customSections", customSections);
         return content;
     }
 
